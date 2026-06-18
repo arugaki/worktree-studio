@@ -27,6 +27,31 @@ export function App(): JSX.Element {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
+  // 全局快捷键:Ctrl+T 新建终端,Ctrl+W 关闭当前终端。
+  // 用捕获阶段抢在 xterm 之前处理,并阻止默认行为(否则 Ctrl+W 会关掉整个窗口)。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (!(e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey)) return
+      // 在我们的输入框(如重命名)里打字时不拦截
+      if (e.target instanceof HTMLInputElement) return
+      const st = useStore.getState()
+      const wsId = st.activeId
+      if (!wsId) return
+      if (e.code === 'KeyT') {
+        e.preventDefault()
+        e.stopPropagation()
+        st.addRootTerminal(wsId)
+      } else if (e.code === 'KeyW') {
+        e.preventDefault()
+        e.stopPropagation()
+        const tid = st.activeTerminal[wsId]
+        if (tid) st.closeTerminal(wsId, tid)
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [])
+
   // 拖拽期间只用本地 state 更新宽度,松手才写入设置(避免每帧序列化整份设置/背景图)
   const [dragWidth, setDragWidth] = useState<number | null>(null)
   const startResize = (e: React.MouseEvent): void => {

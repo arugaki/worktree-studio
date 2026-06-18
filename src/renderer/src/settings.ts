@@ -11,8 +11,8 @@ export interface Settings {
   scrollback: number
   /** 主题 */
   theme: 'dark' | 'light'
-  /** 默认 shell */
-  shell: 'pwsh' | 'powershell' | 'cmd'
+  /** 默认终端 profile id(对应主进程枚举出的 TerminalProfile.id);null = 用列表第一项 */
+  defaultProfileId: string | null
   /** 行高(倍数) */
   lineHeight: number
   /** 字间距 px */
@@ -36,19 +36,13 @@ export const FONT_OPTIONS: { label: string; value: string }[] = [
 
 export const SCROLLBACK_OPTIONS = [1000, 5000, 10000, 50000, 100000]
 
-export const SHELL_OPTIONS: { key: Settings['shell']; label: string }[] = [
-  { key: 'pwsh', label: 'PowerShell 7' },
-  { key: 'powershell', label: 'Windows PowerShell' },
-  { key: 'cmd', label: 'CMD' }
-]
-
 const DEFAULTS: Settings = {
   fontSize: 13,
   fontFamily: FONT_OPTIONS[0].value,
   cursorStyle: 'block',
   scrollback: 10000,
   theme: 'dark',
-  shell: 'pwsh',
+  defaultProfileId: null,
   lineHeight: 1.0,
   letterSpacing: 0,
   foreground: null,

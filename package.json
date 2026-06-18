@@ -6,7 +6,7 @@
   "author": "Worktree Studio",
   "license": "MIT",
   "scripts": {
-    "postinstall": "node scripts/fetch-pty-prebuild.mjs",
+    "postinstall": "node scripts/fetch-pty-prebuild.mjs && node scripts/patch-node-pty.mjs",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",

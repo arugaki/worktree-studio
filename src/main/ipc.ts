@@ -10,6 +10,7 @@ import {
 import * as wsmgr from './workspace'
 import * as git from './git'
 import { PtyManager, resolveDefaultShell } from './pty'
+import { listShellProfiles } from './shells'
 import { WatcherManager } from './watcher'
 
 export interface IpcServices {
@@ -124,12 +125,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null): IpcServices 
 
   ipcMain.handle(IPC.defaultShell, () => resolveDefaultShell())
 
+  ipcMain.handle(IPC.listShellProfiles, () => listShellProfiles())
+
   ipcMain.handle(IPC.ptyCreate, (_e, input: CreatePtyInput) =>
     ptyManager.create({
       id: input.id,
       workspaceId: input.workspaceId,
       cwd: input.cwd,
       shellPath: input.shellPath,
+      args: input.args,
       cols: input.cols,
       rows: input.rows
     })

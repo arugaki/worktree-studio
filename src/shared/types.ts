@@ -59,6 +59,30 @@ export interface TerminalMeta {
   cwd: string
   title: string
   shellPath: string
+  /** 启动参数(WSL / Git Bash 等需要) */
+  args?: string[]
+  /** 关联的终端 profile id(用于图标/类型识别) */
+  profileId?: string
+  /** profile 显示名,如 "Ubuntu" "PowerShell 7"(用于图标识别与提示) */
+  profileLabel?: string
+  /** 用户手动重命名的标题(优先级最高) */
+  customTitle?: string
+  /** 用户设置的标签颜色(hex);null/缺省 = 无 */
+  color?: string
+}
+
+/** 一个可用的终端配置(类似 Windows Terminal 下拉里的一项) */
+export interface TerminalProfile {
+  /** 稳定标识(WT 的 guid,或内置/探测项的合成 id) */
+  id: string
+  /** 显示名,如 "Ubuntu" "Git Bash" "PowerShell 7" */
+  label: string
+  /** 可执行文件路径 */
+  shellPath: string
+  /** 启动参数 */
+  args?: string[]
+  /** 来源:'wt' = Windows Terminal 配置,'git' = Git Bash 探测,'builtin' = 内置兜底 */
+  source: 'wt' | 'git' | 'builtin'
 }
 
 export interface CreateWorkspaceInput {
@@ -82,6 +106,7 @@ export interface CreatePtyInput {
   repo: string
   cwd: string
   shellPath?: string
+  args?: string[]
   cols?: number
   rows?: number
 }
@@ -114,6 +139,9 @@ export interface WtsApi {
   pickDirectory(): Promise<string | null>
   pickImage(): Promise<string | null>
   defaultShell(): Promise<string>
+  listShellProfiles(): Promise<TerminalProfile[]>
+  clipboardRead(): string
+  clipboardWrite(text: string): void
   ptyCreate(input: CreatePtyInput): Promise<{ id: string; shellPath: string }>
   ptyInput(id: string, data: string): void
   ptyResize(id: string, cols: number, rows: number): void
@@ -136,6 +164,7 @@ export const IPC = {
   pickDirectory: 'dialog:pickDirectory',
   pickImage: 'dialog:pickImage',
   defaultShell: 'shell:default',
+  listShellProfiles: 'shell:listProfiles',
   ptyCreate: 'pty:create',
   ptyInput: 'pty:input',
   ptyResize: 'pty:resize',

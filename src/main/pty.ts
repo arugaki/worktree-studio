@@ -64,12 +64,14 @@ export class PtyManager {
     workspaceId: string
     cwd: string
     shellPath?: string
+    args?: string[]
     cols?: number
     rows?: number
   }): { id: string; shellPath: string } {
     const shell = opts.shellPath || resolveDefaultShell()
-    const isPwsh = /pwsh/i.test(shell)
-    const args = isPwsh ? ['-NoLogo'] : ['-NoLogo']
+    // profile 自带参数(WSL / Git Bash 等)优先;否则按 shell 类型给默认参数
+    const isCmd = /cmd\.exe$/i.test(shell)
+    const args = opts.args ?? (isCmd ? [] : ['-NoLogo'])
 
     const spawnOptions = {
       name: 'xterm-256color',
@@ -87,7 +89,13 @@ export class PtyManager {
       useConpty: true
     }
 
-    const proc = nodePty.spawn(shell, args, spawnOptions as nodePty.IPtyForkOptions)
+    let proc: IPty
+    try {
+      proc = nodePty.spawn(shell, args, spawnOptions as nodePty.IPtyForkOptions)
+    } catch (err) {
+      console.error('[pty.create] spawn 失败', JSON.stringify({ shell, args }), err)
+      throw err
+    }
 
     const handle: PtyHandle = { id: opts.id, pty: proc, workspaceId: opts.workspaceId }
     this.map.set(opts.id, handle)

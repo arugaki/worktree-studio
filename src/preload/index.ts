@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { clipboard, contextBridge, ipcRenderer } from 'electron'
 import {
   IPC,
   type CreatePtyInput,
@@ -24,6 +24,10 @@ const api: WtsApi = {
   pickDirectory: () => ipcRenderer.invoke(IPC.pickDirectory),
   pickImage: () => ipcRenderer.invoke(IPC.pickImage),
   defaultShell: () => ipcRenderer.invoke(IPC.defaultShell),
+  listShellProfiles: () => ipcRenderer.invoke(IPC.listShellProfiles),
+
+  clipboardRead: () => clipboard.readText(),
+  clipboardWrite: (text: string) => clipboard.writeText(text),
 
   ptyCreate: (input: CreatePtyInput) => ipcRenderer.invoke(IPC.ptyCreate, input),
   ptyInput: (id, data) => ipcRenderer.send(IPC.ptyInput, { id, data }),

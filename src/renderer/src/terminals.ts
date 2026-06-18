@@ -4,6 +4,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { CanvasAddon } from '@xterm/addon-canvas'
 import type { CreatePtyInput } from '@shared/types'
 import { getSettings, useSettings, type Settings } from './settings'
+import { useTermTitles } from './activity'
 
 /**
  * 终端实例注册表。
@@ -65,11 +66,36 @@ export function feedPtyData(id: string, data: string): void {
   if (!flushTimer) flushTimer = setTimeout(flushPty, 16)
 }
 
+/** 清理某终端的运行时状态(进程标题等) */
+function clearTermRuntime(id: string): void {
+  useTermTitles.getState().clear(id)
+}
+
+/**
+ * 过滤无意义的进程标题。pwsh 默认会把窗口标题设成自身 exe 全路径
+ * (如 "Administrator: C:\...\pwsh.exe"),WSL/cmd 也可能给出 exe 路径,
+ * 这类标题没有信息量、还特别长,直接丢弃 → 标签回退到 profile 名。
+ * 真正有用的标题(ssh 主机名、vim 文件名、用户自定义 PS1 标题)才保留。
+ */
+function meaningfulTitle(raw: string): string | null {
+  let t = raw.trim()
+  if (!t) return null
+  // 去掉提权前缀
+  t = t.replace(/^(Administrator|管理员):\s*/i, '').trim()
+  // 看起来是个可执行文件路径(以 .exe 结尾)→ 无意义
+  if (/\.exe$/i.test(t)) return null
+  // Store 应用的长包路径
+  if (/WindowsApps/i.test(t)) return null
+  return t
+}
+
 const DARK_THEME: ITheme = {
   background: '#0b0c11',
   foreground: '#cdd6f4',
   cursor: '#f5e0dc',
-  selectionBackground: '#3a3550',
+  // 选区用半透明强调色,明显且不挡字;失焦时稍暗
+  selectionBackground: 'rgba(124, 108, 246, 0.45)',
+  selectionInactiveBackground: 'rgba(124, 108, 246, 0.25)',
   black: '#45475a',
   red: '#f38ba8',
   green: '#a6e3a1',
@@ -92,7 +118,8 @@ const LIGHT_THEME: ITheme = {
   background: '#f7f8fb',
   foreground: '#2a2e3a',
   cursor: '#5b46c9',
-  selectionBackground: '#c9c2f0',
+  selectionBackground: 'rgba(109, 92, 246, 0.32)',
+  selectionInactiveBackground: 'rgba(109, 92, 246, 0.18)',
   black: '#3b4252',
   red: '#d63864',
   green: '#2e9a63',
@@ -169,6 +196,7 @@ function wireGlobalEvents(): void {
   useSettings.subscribe(onSettingsChanged)
   window.api.onPtyData(({ id, data }) => feedPtyData(id, data))
   window.api.onPtyExit(({ id, exitCode }) => {
+    clearTermRuntime(id)
     const e = entries.get(id)
     if (!e) return
     e.exited = true
@@ -290,8 +318,57 @@ export function ensureTerminal(meta: CreatePtyInput): TerminalEntry {
   term.parser.registerCsiHandler({ prefix: '?', final: 'h' }, onPrivH)
   term.parser.registerCsiHandler({ prefix: '?', final: 'l' }, onPrivL)
 
+  // 复制/粘贴快捷键(WT 风格):
+  // - Ctrl+C:有选区则复制并清除选区;无选区则放行(正常发送 ^C 中断)
+  // - Ctrl+V:粘贴剪贴板(走 xterm.paste,自动处理括号粘贴模式)
+  // - Ctrl+Shift+C / Ctrl+Shift+V:传统终端习惯,始终复制/粘贴
+  const copySelection = (): boolean => {
+    const sel = term.getSelection()
+    if (sel) {
+      window.api.clipboardWrite(sel)
+      term.clearSelection()
+      return true
+    }
+    return false
+  }
+  const pasteClipboard = (): void => {
+    const text = window.api.clipboardRead()
+    if (text) term.paste(text)
+  }
+  term.attachCustomKeyEventHandler((e) => {
+    if (e.type !== 'keydown') return true
+    const ctrl = e.ctrlKey && !e.altKey && !e.metaKey
+    if (!ctrl) return true
+    if (e.code === 'KeyC') {
+      if (e.shiftKey) {
+        copySelection()
+        return false
+      }
+      // 无 shift:有选区才当复制,否则放行让 ^C 中断
+      return !copySelection()
+    }
+    if (e.code === 'KeyV') {
+      pasteClipboard()
+      return false
+    }
+    return true
+  })
+
+  // Windows 右键:有选区则复制,否则粘贴(类似 conhost 快速编辑)
+  wrapper.addEventListener('contextmenu', (e) => {
+    e.preventDefault()
+    if (!copySelection()) pasteClipboard()
+  })
+
   // 用户输入 → 写入 pty
   term.onData((data) => window.api.ptyInput(meta.id, data))
+
+  // 进程通过 OSC 0/2 设置的标题 → 反映到标签(类似 WT 的动态标题),先过滤掉无意义的 exe 路径标题
+  term.onTitleChange((title) => {
+    const t = meaningfulTitle(title)
+    if (t) useTermTitles.getState().setTitle(meta.id, t)
+    else useTermTitles.getState().clear(meta.id)
+  })
 
   entries.set(meta.id, entry)
   return entry
@@ -341,6 +418,7 @@ export function refit(id: string): void {
 
 /** 彻底销毁某终端(关闭终端时调用) */
 export function disposeTerminal(id: string): void {
+  clearTermRuntime(id)
   const e = entries.get(id)
   if (!e) return
   window.api.ptyKill(id)

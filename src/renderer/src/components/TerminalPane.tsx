@@ -17,7 +17,8 @@ export function TerminalPane({
       workspaceId: meta.workspaceId,
       repo: meta.repo,
       cwd: meta.cwd,
-      shellPath: meta.shellPath
+      shellPath: meta.shellPath,
+      args: meta.args
     }
     ensureTerminal(input)
     if (ref.current) attachTerminal(meta.id, ref.current)

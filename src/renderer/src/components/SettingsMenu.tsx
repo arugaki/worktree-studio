@@ -2,9 +2,9 @@ import { useState } from 'react'
 import {
   FONT_OPTIONS,
   SCROLLBACK_OPTIONS,
-  SHELL_OPTIONS,
   useSettings
 } from '../settings'
+import { useStore } from '../store'
 
 const CURSOR_STYLES: { key: 'block' | 'bar' | 'underline'; label: string }[] = [
   { key: 'block', label: '块' },
@@ -40,6 +40,7 @@ function Stepper({
 export function SettingsMenu(): JSX.Element {
   const [open, setOpen] = useState(false)
   const s = useSettings()
+  const profiles = useStore((st) => st.profiles)
 
   const pickBg = async (): Promise<void> => {
     const data = await window.api.pickImage()
@@ -170,17 +171,16 @@ export function SettingsMenu(): JSX.Element {
               </select>
             </div>
             <div className="settings-row">
-              <span className="settings-label">默认 Shell</span>
+              <span className="settings-label">默认终端</span>
               <select
                 className="settings-select"
-                value={s.shell}
-                onChange={(e) =>
-                  s.set({ shell: e.target.value as typeof s.shell })
-                }
+                value={s.defaultProfileId ?? (profiles[0]?.id ?? '')}
+                onChange={(e) => s.set({ defaultProfileId: e.target.value })}
               >
-                {SHELL_OPTIONS.map((o) => (
-                  <option key={o.key} value={o.key}>
-                    {o.label}
+                {profiles.length === 0 && <option value="">(无可用终端)</option>}
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
                   </option>
                 ))}
               </select>
