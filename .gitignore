@@ -1,0 +1,12 @@
+node_modules/
+out/
+release/
+dist/
+.probe/
+replay-frames/
+*.log
+build.log
+ui-shot-*.png
+.DS_Store
+.vscode/
+.idea/

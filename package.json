@@ -1,0 +1,42 @@
+{
+  "name": "worktree-studio",
+  "version": "1.0.0",
+  "description": "可视化 git worktree 多功能开发工作台:每个功能一套隔离 worktree + 内嵌 pwsh7 终端(适配 Claude Code / Codex)+ 实时 git 改动",
+  "main": "out/main/index.js",
+  "author": "Worktree Studio",
+  "license": "MIT",
+  "scripts": {
+    "postinstall": "node scripts/fetch-pty-prebuild.mjs",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "smoke": "cross-env WTS_SMOKE=1 electron-vite build && cross-env WTS_SMOKE=1 electron .",
+    "package": "electron-vite build && electron-builder --dir",
+    "dist": "electron-vite build && electron-builder"
+  },
+  "dependencies": {
+    "@homebridge/node-pty-prebuilt-multiarch": "0.13.1",
+    "chokidar": "^3.6.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@xterm/addon-canvas": "^0.7.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-unicode11": "^0.8.0",
+    "@xterm/addon-webgl": "^0.18.0",
+    "@xterm/xterm": "^5.5.0",
+    "cross-env": "^7.0.3",
+    "electron": "29.4.6",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "zustand": "^5.0.2"
+  }
+}
