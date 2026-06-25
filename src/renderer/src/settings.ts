@@ -25,6 +25,8 @@ export interface Settings {
   bgDim: number
   /** 侧栏宽度 px */
   sidebarWidth: number
+  /** 仓库改动面板只显示有改动的仓库 */
+  onlyChangedRepos: boolean
 }
 
 export const FONT_OPTIONS: { label: string; value: string }[] = [
@@ -48,7 +50,8 @@ const DEFAULTS: Settings = {
   foreground: null,
   bgImage: null,
   bgDim: 0.55,
-  sidebarWidth: 312
+  sidebarWidth: 312,
+  onlyChangedRepos: false
 }
 
 const KEY = 'wts.settings'

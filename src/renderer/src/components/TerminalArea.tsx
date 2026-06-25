@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import type { TerminalMeta, Workspace } from '@shared/types'
-import { useStore } from '../store'
+import { useStore, type OpenFileMeta } from '../store'
 import { useSettings } from '../settings'
 import { useTermTitles } from '../activity'
 import { TerminalPane } from './TerminalPane'
 import { TermIcon } from './TermIcon'
+import { FileViewer } from './FileViewer'
 
 /** 标签配色板(6 位 hex,便于拼透明度) */
 const TAB_COLORS = ['#f38ba8', '#fab387', '#f9e2af', '#a6e3a1', '#89b4fa', '#cba6f7', '#94e2d5']
+
+/** 稳定的空数组引用:避免 zustand 选择器每次返回新 [] 触发无限重渲染 */
+const EMPTY_FILES: OpenFileMeta[] = []
+const EMPTY_TERMS: TerminalMeta[] = []
 
 interface CtxMenu {
   id: string
@@ -16,8 +21,12 @@ interface CtxMenu {
 }
 
 export function TerminalArea({ ws }: { ws: Workspace }): JSX.Element {
-  const terminals = useStore((s) => s.terminals[ws.id] ?? [])
+  const terminals = useStore((s) => s.terminals[ws.id] ?? EMPTY_TERMS)
   const activeTerm = useStore((s) => s.activeTerminal[ws.id] ?? null)
+  const openFiles = useStore((s) => s.openFiles[ws.id] ?? EMPTY_FILES)
+  const activeFile = useStore((s) => s.activeFile[ws.id] ?? null)
+  const setActiveFile = useStore((s) => s.setActiveFile)
+  const closeFile = useStore((s) => s.closeFile)
   const setActiveTerminal = useStore((s) => s.setActiveTerminal)
   const addRootTerminal = useStore((s) => s.addRootTerminal)
   const closeTerminal = useStore((s) => s.closeTerminal)
@@ -78,7 +87,7 @@ export function TerminalArea({ ws }: { ws: Workspace }): JSX.Element {
                 key={t.id}
                 className={
                   'term-tab' +
-                  (t.id === activeTerm ? ' active' : '') +
+                  (activeFile === null && t.id === activeTerm ? ' active' : '') +
                   (dragId === t.id ? ' dragging' : '')
                 }
                 style={
@@ -151,6 +160,33 @@ export function TerminalArea({ ws }: { ws: Workspace }): JSX.Element {
               </div>
             )
           })}
+
+          {openFiles.map((f) => (
+            <div
+              key={f.path}
+              className={'term-tab file-tab' + (activeFile === f.path ? ' active' : '')}
+              onClick={() => setActiveFile(ws.id, f.path)}
+              title={f.path}
+              onMouseDown={(e) => {
+                if (e.button === 1) {
+                  e.preventDefault()
+                  closeFile(ws.id, f.path)
+                }
+              }}
+            >
+              <span className="term-tab-fileicon">📄</span>
+              <span className="term-tab-title">{f.name}</span>
+              <button
+                className="term-tab-close"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  closeFile(ws.id, f.path)
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
         </div>
 
         <div className="term-add-wrap" ref={wrapRef}>
@@ -287,13 +323,22 @@ export function TerminalArea({ ws }: { ws: Workspace }): JSX.Element {
             />
           </>
         )}
-        {terminals.length === 0 ? (
+        {terminals.length === 0 && !activeFile && (
           <div className="term-empty">没有终端,点击右上角 ＋ 新建一个</div>
-        ) : (
-          terminals.map((t) => (
-            <TerminalPane key={t.id} meta={t} active={t.id === activeTerm} />
-          ))
         )}
+        {/* 终端常驻挂载(保活 pty),仅当未查看文件且为当前标签时可见 */}
+        {terminals.map((t) => (
+          <TerminalPane
+            key={t.id}
+            meta={t}
+            active={activeFile === null && t.id === activeTerm}
+          />
+        ))}
+        {activeFile &&
+          (() => {
+            const f = openFiles.find((x) => x.path === activeFile)
+            return f ? <FileViewer key={f.path} path={f.path} name={f.name} /> : null
+          })()}
       </div>
     </div>
   )

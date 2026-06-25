@@ -1,5 +1,5 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron'
-import { join, extname } from 'node:path'
+import { extname } from 'node:path'
 import { readFileSync } from 'node:fs'
 import {
   IPC,
@@ -9,6 +9,7 @@ import {
 } from '../shared/types'
 import * as wsmgr from './workspace'
 import * as git from './git'
+import { listDir, readFileContent } from './files'
 import { PtyManager, resolveDefaultShell } from './pty'
 import { listShellProfiles } from './shells'
 import { WatcherManager } from './watcher'
@@ -46,6 +47,12 @@ export function registerIpc(getWindow: () => BrowserWindow | null): IpcServices 
     return w
   })
 
+  ipcMain.handle(IPC.openDirectory, (_e, rootDir: string) => {
+    const w = wsmgr.openDirectory(rootDir)
+    watcher.watch(w)
+    return w
+  })
+
   ipcMain.handle(
     IPC.removeWorkspace,
     async (_e, args: { id: string; deleteWorktrees: boolean }) => {
@@ -60,7 +67,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): IpcServices 
     const ws = wsmgr.getWorkspace(workspaceId)
     if (!ws) return []
     return Promise.all(
-      ws.repos.map((r) => git.getStatus(r.name, join(ws.worktreeRoot, r.name)))
+      ws.repos.map((r) => git.getStatus(r.name, wsmgr.worktreePathFor(ws, r.name)))
     )
   })
 
@@ -69,7 +76,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): IpcServices 
     async (_e, args: { workspaceId: string; repo: string }) => {
       const ws = wsmgr.getWorkspace(args.workspaceId)
       if (!ws) return null
-      return git.getStatus(args.repo, join(ws.worktreeRoot, args.repo))
+      return git.getStatus(args.repo, wsmgr.worktreePathFor(ws, args.repo))
     }
   )
 
@@ -78,7 +85,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): IpcServices 
     async (_e, args: { workspaceId: string; repo: string }) => {
       const ws = wsmgr.getWorkspace(args.workspaceId)
       if (!ws) throw new Error('工作区不存在')
-      return git.pull(join(ws.worktreeRoot, args.repo))
+      return git.pull(wsmgr.worktreePathFor(ws, args.repo))
     }
   )
 
@@ -87,7 +94,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null): IpcServices 
     async (_e, args: { workspaceId: string; repo: string }) => {
       const ws = wsmgr.getWorkspace(args.workspaceId)
       if (!ws) throw new Error('工作区不存在')
-      return git.push(join(ws.worktreeRoot, args.repo), ws.branch)
+      const path = wsmgr.worktreePathFor(ws, args.repo)
+      // directory 形态没有统一分支,推送各仓库当前所在分支
+      const branch = ws.branch || (await git.currentBranch(path))
+      if (!branch) throw new Error('无法确定当前分支(可能处于 detached HEAD)')
+      return git.push(path, branch)
     }
   )
 
@@ -122,6 +133,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null): IpcServices 
       return null
     }
   })
+
+  ipcMain.handle(IPC.readDir, (_e, path: string) => listDir(path))
+
+  ipcMain.handle(IPC.readFile, (_e, path: string) => readFileContent(path))
 
   ipcMain.handle(IPC.defaultShell, () => resolveDefaultShell())
 

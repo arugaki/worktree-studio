@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FileChange, RepoStatus, Workspace } from '@shared/types'
 import { useStore } from '../store'
+import { useSettings } from '../settings'
+import { FileTree } from './FileTree'
 
 function codeClass(c: string): string {
   switch (c) {
@@ -164,12 +166,34 @@ export function Sidebar({ ws }: { ws: Workspace }): JSX.Element {
   const refreshStatuses = useStore((s) => s.refreshStatuses)
   const removeWorkspace = useStore((s) => s.removeWorkspace)
 
+  const onlyChanged = useSettings((s) => s.onlyChangedRepos)
+  const setSettings = useSettings((s) => s.set)
+  const [mode, setMode] = useState<'changes' | 'files'>('changes')
+
   const totalChanges = useMemo(
     () => (statuses ?? []).reduce((n, s) => n + s.changes.length, 0),
     [statuses]
   )
 
+  const visible = useMemo(
+    () =>
+      onlyChanged
+        ? (statuses ?? []).filter((s) => s.changes.length > 0)
+        : (statuses ?? []),
+    [statuses, onlyChanged]
+  )
+
+  const isDir = ws.kind === 'directory'
+
   const onRemove = async (): Promise<void> => {
+    if (isDir) {
+      const ok = window.confirm(
+        `从列表移除「${ws.name}」?\n\n这是「直接打开的目录」,移除仅关闭它的标签与终端,不会删除磁盘上的任何文件。`
+      )
+      if (!ok) return
+      await removeWorkspace(ws.id, false)
+      return
+    }
     const del = window.confirm(
       `删除工作区「${ws.name}」?\n\n点「确定」将同时删除磁盘上的 worktree 目录(分支历史保留在各原仓库)。\n点「取消」则中止。`
     )
@@ -180,32 +204,71 @@ export function Sidebar({ ws }: { ws: Workspace }): JSX.Element {
   return (
     <div className="sidebar-inner">
       <div className="sidebar-head">
-        <div className="sidebar-title">{ws.name}</div>
+        <div className="sidebar-title">
+          {isDir && '📂 '}
+          {ws.name}
+        </div>
         <div className="sidebar-sub" title={ws.rootDir}>
           📁 {ws.rootDir}
         </div>
         <div className="sidebar-sub">
-          🌿 分支 {ws.branch} · {ws.repos.length} 仓库 · {totalChanges} 改动
+          {isDir ? '直接打开的目录' : `🌿 分支 ${ws.branch}`} · {ws.repos.length} 仓库 ·{' '}
+          {totalChanges} 改动
         </div>
       </div>
 
-      <div className="sidebar-section-label">
-        <span>仓库改动</span>
-        <button className="icon-btn" title="刷新" onClick={() => refreshStatuses(ws.id)}>
-          ⟳
+      <div className="sidebar-tabs">
+        <button
+          className={'sidebar-tab' + (mode === 'changes' ? ' active' : '')}
+          onClick={() => setMode('changes')}
+        >
+          改动{totalChanges > 0 && <span className="sidebar-tab-badge">{totalChanges}</span>}
+        </button>
+        <button
+          className={'sidebar-tab' + (mode === 'files' ? ' active' : '')}
+          onClick={() => setMode('files')}
+        >
+          文件
         </button>
       </div>
 
-      <div className="repo-list">
-        {(statuses ?? []).map((s) => (
-          <RepoBlock key={s.repo} ws={ws} status={s} />
-        ))}
-        {!statuses && <div className="repo-noop">加载中…</div>}
-      </div>
+      {mode === 'changes' ? (
+        <>
+          <div className="sidebar-section-label">
+            <span>仓库改动</span>
+            <span className="section-actions">
+              <button
+                className={'icon-btn' + (onlyChanged ? ' active' : '')}
+                title={onlyChanged ? '显示全部仓库' : '只显示有改动的仓库'}
+                onClick={() => setSettings({ onlyChangedRepos: !onlyChanged })}
+              >
+                {onlyChanged ? '◉' : '◍'}
+              </button>
+              <button className="icon-btn" title="刷新" onClick={() => refreshStatuses(ws.id)}>
+                ⟳
+              </button>
+            </span>
+          </div>
+
+          <div className="repo-list">
+            {visible.map((s) => (
+              <RepoBlock key={s.repo} ws={ws} status={s} />
+            ))}
+            {!statuses && <div className="repo-noop">加载中…</div>}
+            {statuses && visible.length === 0 && (
+              <div className="repo-noop">
+                {onlyChanged ? '没有有改动的仓库' : '没有仓库'}
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <FileTree ws={ws} />
+      )}
 
       <div className="sidebar-footer">
         <button className="danger" onClick={onRemove}>
-          🗑 删除工作区
+          {isDir ? '✕ 从列表移除' : '🗑 删除工作区'}
         </button>
       </div>
     </div>

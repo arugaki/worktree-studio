@@ -207,6 +207,17 @@ export async function getStatus(
   return base
 }
 
+/** 读取某工作树当前所在分支名(detached 或出错返回空串) */
+export async function currentBranch(worktreePath: string): Promise<string> {
+  try {
+    const { stdout } = await git(worktreePath, ['rev-parse', '--abbrev-ref', 'HEAD'])
+    const b = stdout.trim()
+    return b === 'HEAD' ? '' : b
+  } catch {
+    return ''
+  }
+}
+
 export async function pull(worktreePath: string): Promise<string> {
   const { stdout, stderr } = await git(worktreePath, ['pull', '--ff-only'])
   return (stdout + stderr).trim()

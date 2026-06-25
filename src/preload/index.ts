@@ -14,6 +14,7 @@ const api: WtsApi = {
   listWorkspaces: () => ipcRenderer.invoke(IPC.listWorkspaces),
   createWorkspace: (input: CreateWorkspaceInput) =>
     ipcRenderer.invoke(IPC.createWorkspace, input),
+  openDirectory: (rootDir) => ipcRenderer.invoke(IPC.openDirectory, rootDir),
   removeWorkspace: (id, deleteWorktrees) =>
     ipcRenderer.invoke(IPC.removeWorkspace, { id, deleteWorktrees }),
   statusAll: (workspaceId) => ipcRenderer.invoke(IPC.statusAll, workspaceId),
@@ -23,6 +24,8 @@ const api: WtsApi = {
   push: (workspaceId, repo) => ipcRenderer.invoke(IPC.push, { workspaceId, repo }),
   pickDirectory: () => ipcRenderer.invoke(IPC.pickDirectory),
   pickImage: () => ipcRenderer.invoke(IPC.pickImage),
+  readDir: (path: string) => ipcRenderer.invoke(IPC.readDir, path),
+  readFile: (path: string) => ipcRenderer.invoke(IPC.readFile, path),
   defaultShell: () => ipcRenderer.invoke(IPC.defaultShell),
   listShellProfiles: () => ipcRenderer.invoke(IPC.listShellProfiles),
 

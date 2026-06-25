@@ -10,16 +10,22 @@ export interface RepoRef {
   isRoot: boolean
 }
 
-/** 一个功能工作区 = 一个分支 = 一组 worktree */
+/**
+ * 一个工作区。两种形态:
+ * - 'worktree'(默认):一个功能 = 一个分支 = 一组隔离 worktree(落在 .wt/<name> 下)
+ * - 'directory':直接打开一个已有目录,就地查看其中各仓库的改动,不创建任何 worktree
+ */
 export interface Workspace {
   id: string
-  /** 工作区名,同时作为各仓库的分支名 */
+  /** 形态;缺省视为 'worktree'(兼容旧数据) */
+  kind?: 'worktree' | 'directory'
+  /** 工作区名;worktree 形态下同时作为各仓库的分支名 */
   name: string
   /** 根目录,例如 D:\workspace */
   rootDir: string
-  /** 分支名(默认等于 name) */
+  /** 分支名(worktree 形态默认等于 name;directory 形态为空,分支随各仓库实际而定) */
   branch: string
-  /** worktree 落地的父目录,例如 D:\workspace\.wt\<name> */
+  /** worktree 落地的父目录,例如 D:\workspace\.wt\<name>;directory 形态即 rootDir 本身 */
   worktreeRoot: string
   /** 纳入该工作区的仓库 */
   repos: RepoRef[]
@@ -99,6 +105,29 @@ export interface ScanResult {
   repos: RepoRef[]
 }
 
+/** 目录中的一个条目(用于文件树懒加载) */
+export interface FileEntry {
+  name: string
+  /** 绝对路径 */
+  path: string
+  isDir: boolean
+}
+
+/** 读取文件内容的结果 */
+export interface FileReadResult {
+  path: string
+  /** 文本内容(二进制/过大/目录时为空串) */
+  content: string
+  /** 字节大小 */
+  size: number
+  /** 是否为二进制文件(含 NUL 字节) */
+  binary: boolean
+  /** 是否因超过大小上限未读取 */
+  tooLarge: boolean
+  /** 该路径其实是目录 */
+  isDir?: boolean
+}
+
 export interface CreatePtyInput {
   /** 渲染进程生成的终端 id(避免数据事件竞态) */
   id: string
@@ -131,6 +160,8 @@ export interface WtsApi {
   scanRepos(rootDir: string): Promise<ScanResult>
   listWorkspaces(): Promise<Workspace[]>
   createWorkspace(input: CreateWorkspaceInput): Promise<Workspace>
+  /** 直接打开一个已有目录(就地查看改动,不创建 worktree) */
+  openDirectory(rootDir: string): Promise<Workspace>
   removeWorkspace(id: string, deleteWorktrees: boolean): Promise<void>
   statusAll(workspaceId: string): Promise<RepoStatus[]>
   status(workspaceId: string, repo: string): Promise<RepoStatus | null>
@@ -138,6 +169,10 @@ export interface WtsApi {
   push(workspaceId: string, repo: string): Promise<string>
   pickDirectory(): Promise<string | null>
   pickImage(): Promise<string | null>
+  /** 列出某目录下的条目(文件树懒加载) */
+  readDir(path: string): Promise<FileEntry[]>
+  /** 读取某文件内容(只读查看) */
+  readFile(path: string): Promise<FileReadResult>
   defaultShell(): Promise<string>
   listShellProfiles(): Promise<TerminalProfile[]>
   clipboardRead(): string
@@ -156,6 +191,7 @@ export const IPC = {
   scanRepos: 'workspace:scanRepos',
   listWorkspaces: 'workspace:list',
   createWorkspace: 'workspace:create',
+  openDirectory: 'workspace:openDirectory',
   removeWorkspace: 'workspace:remove',
   statusAll: 'git:statusAll',
   status: 'git:status',
@@ -163,6 +199,8 @@ export const IPC = {
   push: 'git:push',
   pickDirectory: 'dialog:pickDirectory',
   pickImage: 'dialog:pickImage',
+  readDir: 'fs:readDir',
+  readFile: 'fs:readFile',
   defaultShell: 'shell:default',
   listShellProfiles: 'shell:listProfiles',
   ptyCreate: 'pty:create',

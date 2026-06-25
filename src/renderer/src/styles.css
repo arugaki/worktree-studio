@@ -311,6 +311,94 @@ button.danger:hover:not(:disabled) {
   background: var(--bg-hover);
   color: var(--text);
 }
+.icon-btn.active {
+  color: var(--green);
+  background: rgba(70, 211, 154, 0.12);
+}
+.section-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ---- 侧栏「改动 / 文件」切换 ---- */
+.sidebar-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px 4px;
+}
+.sidebar-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+}
+.sidebar-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.sidebar-tab.active {
+  color: var(--text);
+  background: var(--bg-active);
+  border-color: var(--border);
+}
+.sidebar-tab-badge {
+  background: var(--accent-grad);
+  color: #fff;
+  border-radius: var(--radius-pill);
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* ---- 文件目录树 ---- */
+.file-tree {
+  flex: 1;
+  overflow: auto;
+  padding: 2px 6px 8px;
+  font-size: 12.5px;
+}
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+  cursor: default;
+  color: var(--text);
+}
+.tree-row:hover {
+  background: var(--bg-hover);
+}
+.tree-row.file.active {
+  background: var(--bg-active);
+}
+.tree-caret {
+  width: 10px;
+  color: var(--text-faint);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.tree-icon {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-tree-msg {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  padding: 3px 6px;
+}
 .repo-list {
   flex: 1;
   overflow-y: auto;
@@ -348,7 +436,8 @@ button.danger:hover:not(:disabled) {
 }
 .repo-name {
   font-weight: 600;
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0; /* 允许收缩并触发省略号,把多余空间让给分支名 */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -363,7 +452,10 @@ button.danger:hover:not(:disabled) {
   padding: 1px 7px;
   border-radius: var(--radius-pill);
   white-space: nowrap;
-  max-width: 96px;
+  /* 不再写死上限:空间足够时完整显示分支名,拉宽侧栏即可看全;
+     仅在空间不足时才收缩并省略 */
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -761,6 +853,74 @@ button.danger:hover:not(:disabled) {
   position: absolute;
   inset: 8px 10px;
 }
+
+/* ---- 文件查看器(主区域) ---- */
+.term-tab-fileicon {
+  flex-shrink: 0;
+  font-size: 11px;
+}
+.file-view {
+  position: absolute;
+  inset: 8px 10px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.file-view-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.file-view-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.file-view-meta {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.file-view-msg {
+  padding: 24px;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+.file-view-code {
+  flex: 1;
+  display: flex;
+  overflow: auto;
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.file-view-gutter {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 10px 10px 10px 14px;
+  text-align: right;
+  color: var(--text-faint);
+  background: var(--bg-panel);
+  user-select: none;
+  border-right: 1px solid var(--border);
+  /* 水平滚动时行号列保持可见 */
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+.file-view-text {
+  margin: 0;
+  padding: 10px 16px;
+  color: var(--text);
+  white-space: pre;
+  flex: 1;
+}
 .term-wrapper {
   width: 100%;
   height: 100%;
@@ -804,6 +964,12 @@ button.danger:hover:not(:disabled) {
   line-height: 1.75;
   color: var(--text-muted);
   margin-bottom: 24px;
+}
+.empty-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 /* ---- 对话框 ---- */

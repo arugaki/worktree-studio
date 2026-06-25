@@ -1,7 +1,7 @@
 import chokidar, { type FSWatcher } from 'chokidar'
-import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import type { Workspace } from '../shared/types'
+import { worktreePathFor } from './workspace'
 
 type ChangeCb = (workspaceId: string, repo: string) => void
 
@@ -22,7 +22,7 @@ export class WatcherManager {
     for (const repo of ws.repos) {
       const key = `${ws.id}:${repo.name}`
       if (this.watchers.has(key)) continue
-      const wt = join(ws.worktreeRoot, repo.name)
+      const wt = worktreePathFor(ws, repo.name)
       if (!existsSync(wt)) continue
       const w = chokidar.watch(wt, {
         ignored: (p: string) => IGNORE.test(p),

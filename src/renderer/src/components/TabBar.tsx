@@ -6,6 +6,7 @@ export function TabBar(): JSX.Element {
   const activeId = useStore((s) => s.activeId)
   const setActive = useStore((s) => s.setActive)
   const openCreate = useStore((s) => s.openCreate)
+  const openDirectory = useStore((s) => s.openDirectory)
   const statuses = useStore((s) => s.statuses)
 
   return (
@@ -37,20 +38,35 @@ export function TabBar(): JSX.Element {
             (n, s) => n + s.changes.length,
             0
           )
+          const isDir = w.kind === 'directory'
           return (
             <div
               key={w.id}
               className={'tab' + (w.id === activeId ? ' active' : '')}
               onClick={() => setActive(w.id)}
-              title={`${w.rootDir} · 分支 ${w.branch}`}
+              title={
+                isDir
+                  ? `${w.rootDir} · 目录(就地查看改动)`
+                  : `${w.rootDir} · 分支 ${w.branch}`
+              }
             >
-              <span className="tab-name">{w.name}</span>
+              <span className="tab-name">
+                {isDir && '📂 '}
+                {w.name}
+              </span>
               {changes > 0 && <span className="tab-badge">{changes}</span>}
             </div>
           )
         })}
-        <button className="tab-add" onClick={openCreate} title="新建工作区">
+        <button className="tab-add" onClick={openCreate} title="新建工作区(创建 worktree)">
           ＋
+        </button>
+        <button
+          className="tab-add"
+          onClick={() => void openDirectory()}
+          title="打开目录(就地查看改动,不创建 worktree)"
+        >
+          📂
         </button>
       </div>
       <SettingsMenu />

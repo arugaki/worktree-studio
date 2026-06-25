@@ -13,6 +13,7 @@ export function App(): JSX.Element {
   const activeId = useStore((s) => s.activeId)
   const showCreate = useStore((s) => s.showCreate)
   const openCreate = useStore((s) => s.openCreate)
+  const openDirectory = useStore((s) => s.openDirectory)
   const sidebarCollapsed = useStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useStore((s) => s.toggleSidebar)
   const theme = useSettings((s) => s.theme)
@@ -44,8 +45,14 @@ export function App(): JSX.Element {
       } else if (e.code === 'KeyW') {
         e.preventDefault()
         e.stopPropagation()
-        const tid = st.activeTerminal[wsId]
-        if (tid) st.closeTerminal(wsId, tid)
+        // 正在看文件就关文件标签,否则关当前终端
+        const fid = st.activeFile[wsId]
+        if (fid) {
+          st.closeFile(wsId, fid)
+        } else {
+          const tid = st.activeTerminal[wsId]
+          if (tid) st.closeTerminal(wsId, tid)
+        }
       }
     }
     window.addEventListener('keydown', onKey, true)
@@ -90,10 +97,17 @@ export function App(): JSX.Element {
             <div className="empty-desc">
               一个工作区 = 一个功能 = 一个分支。指定根目录(如 D:\workspace)并起个功能名,
               我们会为其中每个仓库创建隔离的 worktree,你就能在内嵌终端里跑 Claude Code / Codex。
+              <br />
+              或者直接打开一个已有目录,就地查看其中各仓库的改动(不创建 worktree)。
             </div>
-            <button className="primary" onClick={openCreate}>
-              ＋ 创建第一个工作区
-            </button>
+            <div className="empty-actions">
+              <button className="primary" onClick={openCreate}>
+                ＋ 创建第一个工作区
+              </button>
+              <button onClick={() => void openDirectory()}>
+                📂 直接打开一个目录
+              </button>
+            </div>
           </div>
         </div>
       ) : active ? (

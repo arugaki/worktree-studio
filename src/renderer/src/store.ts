@@ -9,7 +9,21 @@ import type {
 import { disposeTerminal } from './terminals'
 import { getSettings } from './settings'
 
+/** 主区域里打开的一个文件标签(id = 绝对路径,天然去重) */
+export interface OpenFileMeta {
+  workspaceId: string
+  /** 绝对路径,同时作为标签 id */
+  path: string
+  /** 展示用文件名 */
+  name: string
+}
+
 function wtPath(ws: Workspace, repo: string): string {
+  // directory 形态指向原仓库真实路径,worktree 形态指向 .wt 下的子目录
+  if (ws.kind === 'directory') {
+    const r = ws.repos.find((x) => x.name === repo)
+    if (r) return r.sourcePath
+  }
   return ws.worktreeRoot + '\\' + repo
 }
 function genTermId(): string {
@@ -26,6 +40,10 @@ interface StoreState {
   statuses: Record<string, RepoStatus[]>
   terminals: Record<string, TerminalMeta[]>
   activeTerminal: Record<string, string | null>
+  /** 每个工作区打开的文件标签 */
+  openFiles: Record<string, OpenFileMeta[]>
+  /** 当前在主区域展示的文件路径;null = 展示终端 */
+  activeFile: Record<string, string | null>
   showCreate: boolean
   sidebarCollapsed: boolean
   busy: boolean
@@ -37,6 +55,7 @@ interface StoreState {
   openCreate: () => void
   closeCreate: () => void
   createWorkspace: (input: CreateWorkspaceInput) => Promise<void>
+  openDirectory: () => Promise<void>
   removeWorkspace: (id: string, deleteWorktrees: boolean) => Promise<void>
   refreshStatuses: (wsId: string) => Promise<void>
   refreshRepo: (wsId: string, repo: string) => Promise<void>
@@ -49,6 +68,12 @@ interface StoreState {
   /** 取默认 profile(设置里选的,回退到列表第一项) */
   defaultProfile: () => TerminalProfile | null
   setActiveTerminal: (wsId: string, id: string) => void
+  /** 打开(或激活已打开的)文件标签 */
+  openFile: (wsId: string, path: string, name: string) => void
+  /** 激活某个已打开的文件标签 */
+  setActiveFile: (wsId: string, path: string) => void
+  /** 关闭文件标签 */
+  closeFile: (wsId: string, path: string) => void
   closeTerminal: (wsId: string, id: string) => void
   closeOtherTerminals: (wsId: string, id: string) => void
   closeTerminalsToRight: (wsId: string, id: string) => void
@@ -68,6 +93,8 @@ export const useStore = create<StoreState>((set, get) => ({
   statuses: {},
   terminals: {},
   activeTerminal: {},
+  openFiles: {},
+  activeFile: {},
   showCreate: false,
   sidebarCollapsed: false,
   busy: false,
@@ -122,6 +149,28 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
 
+  openDirectory: async () => {
+    set({ error: null })
+    const dir = await window.api.pickDirectory()
+    if (!dir) return
+    set({ busy: true })
+    try {
+      const ws = await window.api.openDirectory(dir)
+      set((s) =>
+        s.workspaces.some((w) => w.id === ws.id)
+          ? {}
+          : { workspaces: [...s.workspaces, ws] }
+      )
+      get().setActive(ws.id)
+    } catch (e) {
+      const msg = String((e as Error)?.message ?? e)
+      set({ error: msg })
+      window.alert(msg)
+    } finally {
+      set({ busy: false })
+    }
+  },
+
   removeWorkspace: async (id, deleteWorktrees) => {
     // 先关掉该工作区的所有终端
     for (const t of get().terminals[id] ?? []) disposeTerminal(t.id)
@@ -134,9 +183,13 @@ export const useStore = create<StoreState>((set, get) => ({
       delete terminals[id]
       const activeTerminal = { ...s.activeTerminal }
       delete activeTerminal[id]
+      const openFiles = { ...s.openFiles }
+      delete openFiles[id]
+      const activeFile = { ...s.activeFile }
+      delete activeFile[id]
       const activeId =
         s.activeId === id ? (workspaces[0]?.id ?? null) : s.activeId
-      return { workspaces, statuses, terminals, activeTerminal, activeId }
+      return { workspaces, statuses, terminals, activeTerminal, openFiles, activeFile, activeId }
     })
     const next = get().activeId
     if (next) get().setActive(next)
@@ -194,7 +247,9 @@ export const useStore = create<StoreState>((set, get) => ({
     }
     set((s) => ({
       terminals: { ...s.terminals, [wsId]: [...(s.terminals[wsId] ?? []), meta] },
-      activeTerminal: { ...s.activeTerminal, [wsId]: id }
+      activeTerminal: { ...s.activeTerminal, [wsId]: id },
+      // 新建终端时切回终端视图
+      activeFile: { ...s.activeFile, [wsId]: null }
     }))
   },
 
@@ -208,7 +263,41 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setActiveTerminal: (wsId, id) =>
-    set((s) => ({ activeTerminal: { ...s.activeTerminal, [wsId]: id } })),
+    set((s) => ({
+      activeTerminal: { ...s.activeTerminal, [wsId]: id },
+      // 点终端标签时退出文件视图
+      activeFile: { ...s.activeFile, [wsId]: null }
+    })),
+
+  openFile: (wsId, path, name) => {
+    set((s) => {
+      const list = s.openFiles[wsId] ?? []
+      const exists = list.some((f) => f.path === path)
+      return {
+        openFiles: exists
+          ? s.openFiles
+          : { ...s.openFiles, [wsId]: [...list, { workspaceId: wsId, path, name }] },
+        activeFile: { ...s.activeFile, [wsId]: path }
+      }
+    })
+  },
+
+  setActiveFile: (wsId, path) =>
+    set((s) => ({ activeFile: { ...s.activeFile, [wsId]: path } })),
+
+  closeFile: (wsId, path) =>
+    set((s) => {
+      const list = (s.openFiles[wsId] ?? []).filter((f) => f.path !== path)
+      let active = s.activeFile[wsId]
+      if (active === path) {
+        // 关掉当前文件:落到剩余最后一个文件,没有则回到终端
+        active = list.length > 0 ? list[list.length - 1].path : null
+      }
+      return {
+        openFiles: { ...s.openFiles, [wsId]: list },
+        activeFile: { ...s.activeFile, [wsId]: active }
+      }
+    }),
 
   closeTerminal: (wsId, id) => {
     disposeTerminal(id)
