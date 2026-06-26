@@ -310,6 +310,18 @@ export function FileTree({ ws }: { ws: Workspace }): JSX.Element {
           >
             新建文件夹
           </button>
+          <div className="term-ctx-sep" />
+          <button
+            className="term-ctx-item"
+            onClick={() => {
+              const t = menu.entry
+              setMenu(null)
+              if (t.isDir) void window.api.openPath(t.path)
+              else window.api.showItemInFolder(t.path)
+            }}
+          >
+            {menu.entry.isDir ? '在文件管理器中打开' : '在文件管理器中显示'}
+          </button>
           {menu.entry.name && (
             <>
               <div className="term-ctx-sep" />

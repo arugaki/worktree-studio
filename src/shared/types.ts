@@ -201,6 +201,10 @@ export interface WtsApi {
   createFile(path: string): Promise<void>
   /** 新建目录 */
   createDir(path: string): Promise<void>
+  /** 在系统文件管理器中定位并高亮该文件/目录 */
+  showItemInFolder(path: string): void
+  /** 用系统默认方式打开路径(目录→文件管理器,文件→默认程序);返回错误信息,成功为空串 */
+  openPath(path: string): Promise<string>
   defaultShell(): Promise<string>
   /** 列出可用终端 profile;includeWsl=false 跳过(慢的)WSL 枚举,留到按需再加载 */
   listShellProfiles(includeWsl?: boolean): Promise<TerminalProfile[]>
@@ -238,6 +242,8 @@ export const IPC = {
   deletePath: 'fs:delete',
   createFile: 'fs:createFile',
   createDir: 'fs:createDir',
+  showItemInFolder: 'shell:showItem',
+  openPath: 'shell:openPath',
   pasteClipboardImage: 'clipboard:image',
   defaultShell: 'shell:default',
   listShellProfiles: 'shell:listProfiles',

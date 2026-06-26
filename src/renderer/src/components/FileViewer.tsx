@@ -18,26 +18,32 @@ function byteLen(s: string): number {
   return new TextEncoder().encode(s).length
 }
 
-/** 文件查看 / 编辑器:支持纯文本编辑保存,Markdown 预览渲染 */
+/**
+ * 文件查看 / 编辑器:打开即可直接编辑(无需先点「编辑」)。
+ * - 普通文本:直接进入可编辑文本框
+ * - Markdown:默认渲染预览,点「编辑」切到源码编辑;预览会反映未保存的改动
+ * 保存:Ctrl+S 或「保存」按钮。
+ */
 export function FileViewer({ path, name }: { path: string; name: string }): JSX.Element {
+  const md = isMarkdown(name)
   const [res, setRes] = useState<FileReadResult | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [mode, setMode] = useState<'view' | 'edit'>('view')
+  // 默认:普通文件直接可编辑;Markdown 先渲染预览
+  const [mode, setMode] = useState<'view' | 'edit'>(md ? 'view' : 'edit')
   const [draft, setDraft] = useState('')
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveErr, setSaveErr] = useState<string | null>(null)
   const saveFile = useStore((s) => s.saveFile)
   const taRef = useRef<HTMLTextAreaElement>(null)
-  const md = isMarkdown(name)
 
   useEffect(() => {
     let alive = true
     setLoading(true)
     setErr(null)
     setRes(null)
-    setMode('view')
+    setMode(md ? 'view' : 'edit')
     setDirty(false)
     setSaveErr(null)
     window.api
@@ -57,24 +63,17 @@ export function FileViewer({ path, name }: { path: string; name: string }): JSX.
     return () => {
       alive = false
     }
-  }, [path])
+  }, [path, md])
 
   const lineCount = useMemo(() => {
-    if (!res?.content) return 0
-    const c = res.content.endsWith('\n') ? res.content.slice(0, -1) : res.content
+    const c = draft.endsWith('\n') ? draft.slice(0, -1) : draft
     return c.length === 0 ? 1 : c.split('\n').length
-  }, [res])
-
-  const gutter = useMemo(() => {
-    let s = ''
-    for (let i = 1; i <= lineCount; i++) s += i + '\n'
-    return s
-  }, [lineCount])
+  }, [draft])
 
   const canEdit = !!res && !res.isDir && !res.binary && !res.tooLarge
 
   const doSave = async (): Promise<void> => {
-    if (!canEdit || saving) return
+    if (!canEdit || saving || !dirty) return
     setSaving(true)
     setSaveErr(null)
     try {
@@ -88,18 +87,24 @@ export function FileViewer({ path, name }: { path: string; name: string }): JSX.
     }
   }
 
-  const enterEdit = (): void => {
-    if (!res) return
-    setDraft(res.content ?? '')
-    setDirty(false)
-    setMode('edit')
-  }
-
-  const exitEdit = (): void => {
-    setMode('view')
-    setDirty(false)
-    if (res) setDraft(res.content ?? '')
-  }
+  const editor = (
+    <textarea
+      ref={taRef}
+      className="file-view-edit"
+      spellCheck={false}
+      value={draft}
+      onChange={(e) => {
+        setDraft(e.target.value)
+        setDirty(true)
+      }}
+      onKeyDown={(e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+          e.preventDefault()
+          void doSave()
+        }
+      }}
+    />
+  )
 
   let body: JSX.Element
   if (loading) {
@@ -112,45 +117,19 @@ export function FileViewer({ path, name }: { path: string; name: string }): JSX.
     body = <div className="file-view-msg">这是一个目录</div>
   } else if (res.tooLarge) {
     body = (
-      <div className="file-view-msg">文件过大({humanSize(res.size)}),为避免卡顿暂不预览。</div>
+      <div className="file-view-msg">文件过大({humanSize(res.size)}),为避免卡顿暂不打开。</div>
     )
   } else if (res.binary) {
-    body = <div className="file-view-msg">二进制文件({humanSize(res.size)}),不支持文本预览。</div>
-  } else if (mode === 'edit') {
-    body = (
-      <textarea
-        ref={taRef}
-        className="file-view-edit"
-        spellCheck={false}
-        value={draft}
-        onChange={(e) => {
-          setDraft(e.target.value)
-          setDirty(true)
-        }}
-        onKeyDown={(e) => {
-          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-            e.preventDefault()
-            void doSave()
-          }
-        }}
-      />
-    )
-  } else if (md) {
+    body = <div className="file-view-msg">二进制文件({humanSize(res.size)}),不支持文本编辑。</div>
+  } else if (md && mode === 'view') {
     body = (
       <div
         className="file-view-md md-body"
-        dangerouslySetInnerHTML={{ __html: renderMarkdown(res.content || '') }}
+        dangerouslySetInnerHTML={{ __html: renderMarkdown(draft) }}
       />
     )
   } else {
-    body = (
-      <div className="file-view-code">
-        <pre className="file-view-gutter" aria-hidden>
-          {gutter}
-        </pre>
-        <pre className="file-view-text">{res.content || ''}</pre>
-      </div>
-    )
+    body = editor
   }
 
   return (
@@ -162,31 +141,34 @@ export function FileViewer({ path, name }: { path: string; name: string }): JSX.
         </span>
         {res && !res.isDir && (
           <span className="file-view-meta">
-            {humanSize(res.size)}
-            {!res.binary && !res.tooLarge && ` · ${lineCount} 行`}
+            {humanSize(canEdit ? byteLen(draft) : res.size)}
+            {canEdit && ` · ${lineCount} 行`}
           </span>
         )}
         <span className="file-view-spacer" />
         {saveErr && <span className="file-view-saveerr">保存失败: {saveErr}</span>}
-        {canEdit &&
-          (mode === 'edit' ? (
-            <>
-              <button
-                className="file-view-btn primary"
-                disabled={!dirty || saving}
-                onClick={() => void doSave()}
-              >
-                {saving ? '保存中…' : '💾 保存'}
-              </button>
-              <button className="file-view-btn" onClick={exitEdit}>
-                {md ? '预览' : '查看'}
-              </button>
-            </>
-          ) : (
-            <button className="file-view-btn" onClick={enterEdit}>
-              ✏ 编辑
+        {canEdit && (
+          <>
+            <button
+              className="file-view-btn primary"
+              disabled={!dirty || saving}
+              onClick={() => void doSave()}
+              title="保存 (Ctrl+S)"
+            >
+              {saving ? '保存中…' : '💾 保存'}
             </button>
-          ))}
+            {md &&
+              (mode === 'view' ? (
+                <button className="file-view-btn" onClick={() => setMode('edit')}>
+                  ✏ 编辑
+                </button>
+              ) : (
+                <button className="file-view-btn" onClick={() => setMode('view')}>
+                  预览
+                </button>
+              ))}
+          </>
+        )}
       </div>
       {body}
     </div>

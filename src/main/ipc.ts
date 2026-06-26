@@ -1,4 +1,4 @@
-import { BrowserWindow, clipboard, dialog, ipcMain } from 'electron'
+import { BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import { extname, join } from 'node:path'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -179,6 +179,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null): IpcServices 
   ipcMain.handle(IPC.createFile, (_e, path: string) => createFile(path))
 
   ipcMain.handle(IPC.createDir, (_e, path: string) => createDir(path))
+
+  ipcMain.on(IPC.showItemInFolder, (_e, path: string) => shell.showItemInFolder(path))
+
+  ipcMain.handle(IPC.openPath, (_e, path: string) => shell.openPath(path))
 
   // 剪贴板里若有图片,存成临时 PNG 并返回路径(供 Claude Code / Codex 读取);否则返回 null
   ipcMain.handle(IPC.pasteClipboardImage, (): string | null => {

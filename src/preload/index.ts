@@ -35,6 +35,8 @@ const api: WtsApi = {
   deletePath: (path: string) => ipcRenderer.invoke(IPC.deletePath, path),
   createFile: (path: string) => ipcRenderer.invoke(IPC.createFile, path),
   createDir: (path: string) => ipcRenderer.invoke(IPC.createDir, path),
+  showItemInFolder: (path: string) => ipcRenderer.send(IPC.showItemInFolder, path),
+  openPath: (path: string) => ipcRenderer.invoke(IPC.openPath, path),
   defaultShell: () => ipcRenderer.invoke(IPC.defaultShell),
   listShellProfiles: (includeWsl?: boolean) =>
     ipcRenderer.invoke(IPC.listShellProfiles, includeWsl),

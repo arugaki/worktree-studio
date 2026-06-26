@@ -375,6 +375,16 @@ export function ensureTerminal(meta: CreatePtyInput): TerminalEntry {
     return true
   })
 
+  // 右键归「终端层」做复制/粘贴:用捕获阶段吞掉右键的 mousedown/mouseup,别让 xterm 把它
+  // 作为鼠标事件上报给应用。否则开了鼠标上报的 TUI(如 Claude Code)收到右键后会自己再
+  // 粘一次,叠加我们下面的粘贴 → 「粘贴两次」。左键(选择)、中键不受影响;普通 shell 没开
+  // 鼠标上报,行为不变。
+  const swallowRightButton = (e: MouseEvent): void => {
+    if (e.button === 2) e.stopPropagation()
+  }
+  wrapper.addEventListener('mousedown', swallowRightButton, true)
+  wrapper.addEventListener('mouseup', swallowRightButton, true)
+
   // Windows 右键:有选区则复制,否则粘贴(类似 conhost 快速编辑)
   wrapper.addEventListener('contextmenu', (e) => {
     e.preventDefault()
