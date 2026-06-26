@@ -45,8 +45,18 @@ export function registerIpc(getWindow: () => BrowserWindow | null): IpcServices 
   ipcMain.handle(IPC.scanRepos, (_e, rootDir: string) => git.scanRepos(rootDir))
 
   ipcMain.handle(IPC.listWorkspaces, () => {
+    const _t0 = Date.now()
     const list = wsmgr.listWorkspaces()
+    const _t1 = Date.now()
     for (const w of list) watcher.watch(w)
+    if (process.env.WTS_PERF)
+      console.log(
+        '[perf] listWorkspaces read',
+        _t1 - _t0,
+        'ms | watcher.watch x' + list.length,
+        Date.now() - _t1,
+        'ms'
+      )
     return list
   })
 
@@ -176,9 +186,16 @@ export function registerIpc(getWindow: () => BrowserWindow | null): IpcServices 
     }
   })
 
-  ipcMain.handle(IPC.defaultShell, () => resolveDefaultShell())
+  ipcMain.handle(IPC.defaultShell, () => {
+    const _t = Date.now()
+    const s = resolveDefaultShell()
+    if (process.env.WTS_PERF) console.log('[perf] resolveDefaultShell', Date.now() - _t, 'ms ->', s)
+    return s
+  })
 
-  ipcMain.handle(IPC.listShellProfiles, () => listShellProfiles())
+  ipcMain.handle(IPC.listShellProfiles, (_e, includeWsl?: boolean) =>
+    listShellProfiles({ includeWsl })
+  )
 
   ipcMain.handle(IPC.ptyCreate, (_e, input: CreatePtyInput) =>
     ptyManager.create({

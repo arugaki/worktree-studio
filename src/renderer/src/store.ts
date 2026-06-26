@@ -35,6 +35,10 @@ interface StoreState {
   defaultShell: string
   /** 主进程枚举出的可用终端 profile(类似 Windows Terminal 下拉) */
   profiles: TerminalProfile[]
+  /** 是否已做过「含 WSL」的完整枚举(WSL 较慢,按需加载) */
+  profilesFull: boolean
+  /** 完整枚举是否进行中(下拉里显示「检测 WSL…」) */
+  profilesLoading: boolean
   workspaces: Workspace[]
   activeId: string | null
   statuses: Record<string, RepoStatus[]>
@@ -69,6 +73,8 @@ interface StoreState {
   addRootTerminal: (wsId: string, profile?: TerminalProfile) => void
   /** 取默认 profile(设置里选的,回退到列表第一项) */
   defaultProfile: () => TerminalProfile | null
+  /** 按需做一次「含 WSL」的完整 profile 枚举(打开终端类型下拉/设置时调用) */
+  loadProfiles: () => Promise<void>
   setActiveTerminal: (wsId: string, id: string) => void
   /** 打开(或激活已打开的)文件标签 */
   openFile: (wsId: string, path: string, name: string) => void
@@ -98,6 +104,8 @@ export const useStore = create<StoreState>((set, get) => ({
   ready: false,
   defaultShell: 'pwsh.exe',
   profiles: [],
+  profilesFull: false,
+  profilesLoading: false,
   workspaces: [],
   activeId: null,
   statuses: {},
@@ -120,9 +128,13 @@ export const useStore = create<StoreState>((set, get) => ({
     ])
     set({ defaultShell: shell, workspaces, ready: true })
 
+    // 后台加载「不含 WSL」的快速列表(pwsh/cmd/Git Bash/WT 等),首屏即可用且不碰 WSL。
+    // WSL 留到用户真正打开终端类型下拉或设置时再用 loadProfiles() 完整枚举。
     window.api
-      .listShellProfiles()
-      .then((profiles) => set({ profiles }))
+      .listShellProfiles(false)
+      .then((profiles) => {
+        if (!get().profilesFull) set({ profiles })
+      })
       .catch(() => {
         /* 保持空列表,新建终端时回退到默认 shell */
       })
@@ -246,6 +258,19 @@ export const useStore = create<StoreState>((set, get) => ({
     if (profiles.length === 0) return null
     const id = getSettings().defaultProfileId
     return profiles.find((p) => p.id === id) ?? profiles[0]
+  },
+
+  loadProfiles: async () => {
+    if (get().profilesFull || get().profilesLoading) return
+    set({ profilesLoading: true })
+    try {
+      const profiles = await window.api.listShellProfiles(true)
+      set({ profiles, profilesFull: true })
+    } catch {
+      /* 失败则保留现有(不含 WSL)列表 */
+    } finally {
+      set({ profilesLoading: false })
+    }
   },
 
   addTerminal: (wsId, repo, opts) => {

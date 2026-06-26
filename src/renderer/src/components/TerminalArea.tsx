@@ -37,6 +37,8 @@ export function TerminalArea({ ws }: { ws: Workspace }): JSX.Element {
   const setTerminalColor = useStore((s) => s.setTerminalColor)
   const moveTerminal = useStore((s) => s.moveTerminal)
   const profiles = useStore((s) => s.profiles)
+  const profilesLoading = useStore((s) => s.profilesLoading)
+  const loadProfiles = useStore((s) => s.loadProfiles)
   const oscTitles = useTermTitles((s) => s.titles)
   const defaultProfileId = useSettings((s) => s.defaultProfileId)
   const bgImage = useSettings((s) => s.bgImage)
@@ -197,7 +199,13 @@ export function TerminalArea({ ws }: { ws: Workspace }): JSX.Element {
               </button>
               <button
                 className="term-add term-add-caret"
-                onClick={() => setMenuOpen((v) => !v)}
+                onClick={() =>
+                  setMenuOpen((v) => {
+                    // 打开下拉时才做含 WSL 的完整枚举(WSL 冷启动慢,不在 app 启动时加载)
+                    if (!v) void loadProfiles()
+                    return !v
+                  })
+                }
                 title="选择终端类型"
               >
                 ▾
@@ -205,7 +213,7 @@ export function TerminalArea({ ws }: { ws: Workspace }): JSX.Element {
             </div>
             {menuOpen && (
               <div className="term-profile-menu">
-                {profiles.length === 0 && (
+                {profiles.length === 0 && !profilesLoading && (
                   <div className="term-profile-empty">未发现可用终端</div>
                 )}
                 {profiles.map((p) => (
@@ -222,6 +230,9 @@ export function TerminalArea({ ws }: { ws: Workspace }): JSX.Element {
                     {p.id === defaultId && <span className="term-profile-tag">默认</span>}
                   </button>
                 ))}
+                {profilesLoading && (
+                  <div className="term-profile-empty">检测 WSL…</div>
+                )}
               </div>
             )}
           </div>

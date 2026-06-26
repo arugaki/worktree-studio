@@ -184,7 +184,8 @@ export interface WtsApi {
   /** 新建目录 */
   createDir(path: string): Promise<void>
   defaultShell(): Promise<string>
-  listShellProfiles(): Promise<TerminalProfile[]>
+  /** 列出可用终端 profile;includeWsl=false 跳过(慢的)WSL 枚举,留到按需再加载 */
+  listShellProfiles(includeWsl?: boolean): Promise<TerminalProfile[]>
   clipboardRead(): string
   clipboardWrite(text: string): void
   /** 剪贴板里若有图片,存成临时文件并返回其路径;否则返回 null */

@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, appendFileSync } from 'node:fs'
+import { join } from 'node:path'
 import * as nodePty from '@homebridge/node-pty-prebuilt-multiarch'
 import type { IPty } from '@homebridge/node-pty-prebuilt-multiarch'
 
@@ -9,9 +10,11 @@ let cachedShell: string | null = null
 export function resolveDefaultShell(): string {
   if (cachedShell) return cachedShell
   // 1) 标准安装位置(纯 existsSync,最快,绝大多数机器命中,避免 spawnSync 冻结主进程)
+  //    末项是 Store 版 PowerShell 的执行别名,很多 Win11 只装了商店版,命中它即可免去 where.exe
   const candidates = [
     'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
-    'C:\\Program Files\\PowerShell\\7-preview\\pwsh.exe'
+    'C:\\Program Files\\PowerShell\\7-preview\\pwsh.exe',
+    join(process.env.LOCALAPPDATA ?? '', 'Microsoft', 'WindowsApps', 'pwsh.exe')
   ]
   for (const c of candidates) {
     if (existsSync(c)) {
@@ -92,7 +95,9 @@ export class PtyManager {
 
     let proc: IPty
     try {
+      const _t = Date.now()
       proc = nodePty.spawn(shell, args, spawnOptions as nodePty.IPtyForkOptions)
+      if (process.env.WTS_PERF) console.log('[perf] node-pty spawn', Date.now() - _t, 'ms', shell)
     } catch (err) {
       console.error('[pty.create] spawn 失败', JSON.stringify({ shell, args }), err)
       throw err

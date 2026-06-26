@@ -41,6 +41,7 @@ export function SettingsMenu(): JSX.Element {
   const [open, setOpen] = useState(false)
   const s = useSettings()
   const profiles = useStore((st) => st.profiles)
+  const loadProfiles = useStore((st) => st.loadProfiles)
 
   const pickBg = async (): Promise<void> => {
     const data = await window.api.pickImage()
@@ -52,7 +53,13 @@ export function SettingsMenu(): JSX.Element {
       <button
         className={'settings-btn' + (open ? ' active' : '')}
         title="设置"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() =>
+          setOpen((v) => {
+            // 打开设置时再做含 WSL 的完整枚举,默认终端下拉里才会出现 WSL 发行版
+            if (!v) void loadProfiles()
+            return !v
+          })
+        }
       >
         ⚙
       </button>

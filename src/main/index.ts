@@ -5,6 +5,9 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { registerIpc, type IpcServices } from './ipc'
 import { runSmoke } from './smoke'
 
+// 启动耗时基准(模块加载 ≈ 进程启动)
+const APP_T0 = Date.now()
+
 /** 回放录制的 codex pty 日志并截取连续帧,用于肉眼诊断「到底什么在闪」 */
 async function runReplay(): Promise<number> {
   const logFile = process.env.WTS_REPLAY as string
@@ -109,7 +112,14 @@ function createWindow(): void {
     }
   })
 
-  mainWindow.on('ready-to-show', () => mainWindow?.show())
+  mainWindow.on('ready-to-show', () => {
+    if (process.env.WTS_PERF) console.log('[perf] ready-to-show', Date.now() - APP_T0, 'ms')
+    mainWindow?.show()
+  })
+  if (process.env.WTS_PERF)
+    mainWindow.webContents.once('did-finish-load', () =>
+      console.log('[perf] did-finish-load', Date.now() - APP_T0, 'ms')
+    )
   mainWindow.on('closed', () => {
     mainWindow = null
   })

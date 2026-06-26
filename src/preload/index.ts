@@ -34,7 +34,8 @@ const api: WtsApi = {
   createFile: (path: string) => ipcRenderer.invoke(IPC.createFile, path),
   createDir: (path: string) => ipcRenderer.invoke(IPC.createDir, path),
   defaultShell: () => ipcRenderer.invoke(IPC.defaultShell),
-  listShellProfiles: () => ipcRenderer.invoke(IPC.listShellProfiles),
+  listShellProfiles: (includeWsl?: boolean) =>
+    ipcRenderer.invoke(IPC.listShellProfiles, includeWsl),
 
   clipboardRead: () => clipboard.readText(),
   clipboardWrite: (text: string) => clipboard.writeText(text),

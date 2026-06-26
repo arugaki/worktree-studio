@@ -51,7 +51,12 @@ function runAsync(
  *  4) 内置 pwsh / Windows PowerShell / CMD 兜底,保证列表永不为空
  * 每个来源独立 try/catch,任一失败不影响其余;最终按"可执行+参数"去重。
  */
-export async function listShellProfiles(): Promise<TerminalProfile[]> {
+export async function listShellProfiles(
+  opts?: { includeWsl?: boolean }
+): Promise<TerminalProfile[]> {
+  // 默认包含 WSL;首次启动传 false 跳过 WSL(`wsl --list` 会冷启动 WSL 虚拟机,很慢),
+  // 等用户真正打开「终端类型」下拉或设置时再带 WSL 完整枚举。
+  const includeWsl = opts?.includeWsl !== false
   const out: TerminalProfile[] = []
   const seen = new Set<string>()
   const seenLabels = new Set<string>()
@@ -72,11 +77,14 @@ export async function listShellProfiles(): Promise<TerminalProfile[]> {
     /* ignore */
   }
 
-  // 2) WSL 发行版(WT 存根常缺 commandline,这里直接问 wsl 才完整)— 异步,不阻塞主进程
-  try {
-    for (const p of await enumWslDistros()) add(p)
-  } catch {
-    /* ignore */
+  // 2) WSL 发行版(WT 存根常缺 commandline,这里直接问 wsl 才完整)— 异步,不阻塞主进程;
+  //    仅在 includeWsl 时枚举,避免首次启动就冷启动 WSL 虚拟机拖慢打开速度
+  if (includeWsl) {
+    try {
+      for (const p of await enumWslDistros()) add(p)
+    } catch {
+      /* ignore */
+    }
   }
 
   // 3) Git Bash
