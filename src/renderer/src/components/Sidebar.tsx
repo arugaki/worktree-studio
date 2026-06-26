@@ -49,6 +49,8 @@ function RepoBlock({
   const [busy, setBusy] = useState(false)
   const addTerminal = useStore((s) => s.addTerminal)
   const refreshStatuses = useStore((s) => s.refreshStatuses)
+  const openDiff = useStore((s) => s.openDiff)
+  const activeFile = useStore((s) => s.activeFile[ws.id] ?? null)
 
   const isRoot = ws.repos.find((r) => r.name === status.repo)?.isRoot
 
@@ -147,8 +149,14 @@ function RepoBlock({
           {status.error && <div className="repo-error">{status.error}</div>}
           {status.changes.map((ch) => {
             const { code, cls } = changeLabel(ch)
+            const diffId = `diff:${status.repo}/${ch.path}`
             return (
-              <div className="file-row" key={ch.path} title={ch.path}>
+              <div
+                className={'file-row' + (activeFile === diffId ? ' active' : '')}
+                key={ch.path}
+                title={`查看差异:${ch.path}`}
+                onClick={() => openDiff(ws.id, status.repo, ch.path)}
+              >
                 <span className={'file-code ' + cls}>{code}</span>
                 <span className="file-path">{ch.path}</span>
               </div>

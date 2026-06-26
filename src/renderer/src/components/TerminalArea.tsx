@@ -6,6 +6,7 @@ import { useTermTitles } from '../activity'
 import { TerminalPane } from './TerminalPane'
 import { TermIcon } from './TermIcon'
 import { FileViewer } from './FileViewer'
+import { DiffViewer } from './DiffViewer'
 
 /** 标签配色板(6 位 hex,便于拼透明度) */
 const TAB_COLORS = ['#f38ba8', '#fab387', '#f9e2af', '#a6e3a1', '#89b4fa', '#cba6f7', '#94e2d5']
@@ -27,6 +28,7 @@ export function TerminalArea({ ws }: { ws: Workspace }): JSX.Element {
   const activeFile = useStore((s) => s.activeFile[ws.id] ?? null)
   const setActiveFile = useStore((s) => s.setActiveFile)
   const closeFile = useStore((s) => s.closeFile)
+  const closeAllFiles = useStore((s) => s.closeAllFiles)
   const setActiveTerminal = useStore((s) => s.setActiveTerminal)
   const addRootTerminal = useStore((s) => s.addRootTerminal)
   const closeTerminal = useStore((s) => s.closeTerminal)
@@ -346,36 +348,54 @@ export function TerminalArea({ ws }: { ws: Workspace }): JSX.Element {
           <div className="file-resizer" onMouseDown={startFileResize} title="拖拽调整宽度" />
           <div className="file-panel" style={{ flexBasis: `${fileRatio * 100}%` }}>
             <div className="file-panel-tabs">
-              {openFiles.map((f) => (
-                <div
-                  key={f.path}
-                  className={'term-tab file-tab' + (shownFile?.path === f.path ? ' active' : '')}
-                  onClick={() => setActiveFile(ws.id, f.path)}
-                  title={f.path}
-                  onMouseDown={(e) => {
-                    if (e.button === 1) {
-                      e.preventDefault()
-                      closeFile(ws.id, f.path)
-                    }
-                  }}
-                >
-                  <span className="term-tab-fileicon">📄</span>
-                  <span className="term-tab-title">{f.name}</span>
-                  <button
-                    className="term-tab-close"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      closeFile(ws.id, f.path)
+              <div className="file-panel-tabs-scroll">
+                {openFiles.map((f) => (
+                  <div
+                    key={f.path}
+                    className={'term-tab file-tab' + (shownFile?.path === f.path ? ' active' : '')}
+                    onClick={() => setActiveFile(ws.id, f.path)}
+                    title={f.path}
+                    onMouseDown={(e) => {
+                      if (e.button === 1) {
+                        e.preventDefault()
+                        closeFile(ws.id, f.path)
+                      }
                     }}
                   >
-                    ×
-                  </button>
-                </div>
-              ))}
+                    <span className="term-tab-fileicon">{f.kind === 'diff' ? '⇆' : '📄'}</span>
+                    <span className="term-tab-title">{f.name}</span>
+                    <button
+                      className="term-tab-close"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        closeFile(ws.id, f.path)
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                className="file-panel-close"
+                title="关闭文件视图(全部)"
+                onClick={() => closeAllFiles(ws.id)}
+              >
+                ✕
+              </button>
             </div>
-            {shownFile && (
-              <FileViewer key={shownFile.path} path={shownFile.path} name={shownFile.name} />
-            )}
+            {shownFile &&
+              (shownFile.kind === 'diff' ? (
+                <DiffViewer
+                  key={shownFile.path}
+                  wsId={ws.id}
+                  repo={shownFile.repo ?? ''}
+                  relPath={shownFile.relPath ?? ''}
+                  name={shownFile.name}
+                />
+              ) : (
+                <FileViewer key={shownFile.path} path={shownFile.path} name={shownFile.name} />
+              ))}
           </div>
         </>
       )}

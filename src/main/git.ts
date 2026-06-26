@@ -1,8 +1,14 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { existsSync, readdirSync, statSync, rmSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import type { FileChange, RepoRef, RepoStatus, ScanResult } from '../shared/types'
+import type {
+  FileChange,
+  FileDiffResult,
+  RepoRef,
+  RepoStatus,
+  ScanResult
+} from '../shared/types'
 
 const execFileAsync = promisify(execFile)
 
@@ -205,6 +211,68 @@ export async function getStatus(
     base.error = String((e as Error).message || e)
   }
   return base
+}
+
+/** 文本/二进制判定:前 8KB 出现 NUL 即视为二进制 */
+function looksBinary(buf: Buffer): boolean {
+  const len = Math.min(buf.length, 8192)
+  for (let i = 0; i < len; i++) if (buf[i] === 0) return true
+  return false
+}
+
+const DIFF_MAX_BYTES = 1.5 * 1024 * 1024
+
+/**
+ * 取某改动文件的「变更前/变更后」内容:
+ * - before = HEAD 中的版本(`git show HEAD:<relPath>`);新文件取不到则为空
+ * - after  = 工作区当前内容;已删除则为空
+ * relPath 为相对仓库根的路径(用 / 分隔,porcelain v2 即此形式)
+ */
+export async function getFileDiff(
+  worktreePath: string,
+  relPath: string
+): Promise<FileDiffResult> {
+  const res: FileDiffResult = {
+    before: '',
+    after: '',
+    beforeExists: false,
+    afterExists: false,
+    binary: false,
+    tooLarge: false
+  }
+
+  // before:HEAD 版本(用 buffer 拿,便于二进制探测)
+  try {
+    const { stdout } = await execFileAsync('git', ['show', `HEAD:${relPath}`], {
+      cwd: worktreePath,
+      windowsHide: true,
+      maxBuffer: 64 * 1024 * 1024,
+      encoding: 'buffer'
+    })
+    const buf = stdout as unknown as Buffer
+    res.beforeExists = true
+    if (buf.length > DIFF_MAX_BYTES) res.tooLarge = true
+    else if (looksBinary(buf)) res.binary = true
+    else res.before = buf.toString('utf8')
+  } catch {
+    /* HEAD 中不存在 → 新增文件 */
+  }
+
+  // after:工作区当前文件
+  try {
+    const abs = join(worktreePath, relPath)
+    if (existsSync(abs)) {
+      const buf = readFileSync(abs)
+      res.afterExists = true
+      if (buf.length > DIFF_MAX_BYTES) res.tooLarge = true
+      else if (looksBinary(buf)) res.binary = true
+      else res.after = buf.toString('utf8')
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return res
 }
 
 /** 读取某工作树当前所在分支名(detached 或出错返回空串) */

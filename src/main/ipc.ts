@@ -100,6 +100,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null): IpcServices 
   )
 
   ipcMain.handle(
+    IPC.getFileDiff,
+    async (_e, args: { workspaceId: string; repo: string; relPath: string }) => {
+      const ws = wsmgr.getWorkspace(args.workspaceId)
+      if (!ws) return null
+      return git.getFileDiff(wsmgr.worktreePathFor(ws, args.repo), args.relPath)
+    }
+  )
+
+  ipcMain.handle(
     IPC.pull,
     async (_e, args: { workspaceId: string; repo: string }) => {
       const ws = wsmgr.getWorkspace(args.workspaceId)

@@ -113,6 +113,22 @@ export interface FileEntry {
   isDir: boolean
 }
 
+/** 某个改动文件的「变更前/变更后」内容(用于并排 diff) */
+export interface FileDiffResult {
+  /** 变更前 = HEAD 中的版本(新文件为空串) */
+  before: string
+  /** 变更后 = 工作区当前内容(已删除为空串) */
+  after: string
+  /** HEAD 中是否存在(false = 新增文件) */
+  beforeExists: boolean
+  /** 工作区是否存在(false = 已删除) */
+  afterExists: boolean
+  /** 任一侧为二进制 */
+  binary: boolean
+  /** 任一侧超出大小上限 */
+  tooLarge: boolean
+}
+
 /** 读取文件内容的结果 */
 export interface FileReadResult {
   path: string
@@ -165,6 +181,8 @@ export interface WtsApi {
   removeWorkspace(id: string, deleteWorktrees: boolean): Promise<void>
   statusAll(workspaceId: string): Promise<RepoStatus[]>
   status(workspaceId: string, repo: string): Promise<RepoStatus | null>
+  /** 取某改动文件的「变更前/变更后」内容(HEAD vs 工作区) */
+  getFileDiff(workspaceId: string, repo: string, relPath: string): Promise<FileDiffResult | null>
   pull(workspaceId: string, repo: string): Promise<string>
   push(workspaceId: string, repo: string): Promise<string>
   pickDirectory(): Promise<string | null>
@@ -208,6 +226,7 @@ export const IPC = {
   removeWorkspace: 'workspace:remove',
   statusAll: 'git:statusAll',
   status: 'git:status',
+  getFileDiff: 'git:fileDiff',
   pull: 'git:pull',
   push: 'git:push',
   pickDirectory: 'dialog:pickDirectory',

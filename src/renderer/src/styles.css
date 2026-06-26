@@ -506,8 +506,17 @@ button.danger:hover:not(:disabled) {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 3px 0;
+  padding: 3px 6px;
+  margin: 0 -6px;
+  border-radius: 6px;
   font-size: 12px;
+  cursor: pointer;
+}
+.file-row:hover {
+  background: var(--bg-hover);
+}
+.file-row.active {
+  background: var(--bg-active);
 }
 .file-code {
   width: 16px;
@@ -962,12 +971,36 @@ button.danger:hover:not(:disabled) {
 .file-panel-tabs {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   padding: 8px 10px;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
-  overflow-x: auto;
   flex-shrink: 0;
+}
+.file-panel-tabs-scroll {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.file-panel-close {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1;
+}
+.file-panel-close:hover {
+  background: var(--red, #f38ba8);
+  border-color: var(--red, #f38ba8);
+  color: #fff;
 }
 
 /* ---- 文件查看器:头部操作按钮 ---- */
@@ -1102,6 +1135,99 @@ button.danger:hover:not(:disabled) {
   border: none;
   border-top: 1px solid var(--border);
   margin: 1.2em 0;
+}
+
+/* ---- 并排 Diff 视图 ---- */
+.diff-stat {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+}
+.diff-stat-add {
+  color: var(--green, #2e9a63);
+}
+.diff-stat-del {
+  color: var(--red, #f38ba8);
+}
+.diff-cols-head {
+  display: flex;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+.diff-col-label {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 4px 14px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.diff-col-label:first-child {
+  border-right: 1px solid var(--border);
+}
+.diff-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+}
+.diff-pane {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: auto;
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.diff-pane:first-child {
+  border-right: 1px solid var(--border);
+}
+.diff-line {
+  display: flex;
+  align-items: flex-start;
+  min-width: max-content;
+  min-height: 1.5em;
+  white-space: pre;
+}
+.diff-gutter {
+  flex-shrink: 0;
+  width: 44px;
+  padding: 0 8px 0 0;
+  text-align: right;
+  color: var(--text-faint);
+  user-select: none;
+  position: sticky;
+  left: 0;
+  background: var(--bg-panel);
+}
+.diff-code {
+  flex: 1;
+  padding: 0 12px;
+  color: var(--text);
+}
+/* 删除(左)红、新增(右)绿、对侧留空的占位行用条纹底 */
+.diff-line.diff-del {
+  background: rgba(243, 139, 168, 0.16);
+}
+.diff-line.diff-del .diff-gutter {
+  background: rgba(243, 139, 168, 0.16);
+}
+.diff-line.diff-ins {
+  background: rgba(166, 227, 161, 0.16);
+}
+.diff-line.diff-ins .diff-gutter {
+  background: rgba(166, 227, 161, 0.16);
+}
+.diff-line.diff-blank {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 6px,
+    rgba(127, 127, 127, 0.06) 6px,
+    rgba(127, 127, 127, 0.06) 12px
+  );
+}
+.diff-line.diff-blank .diff-gutter {
+  background: var(--bg-panel);
 }
 
 /* ---- 文件树:内联重命名/新建输入 ---- */

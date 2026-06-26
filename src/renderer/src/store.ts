@@ -9,13 +9,19 @@ import type {
 import { disposeTerminal } from './terminals'
 import { getSettings } from './settings'
 
-/** 主区域里打开的一个文件标签(id = 绝对路径,天然去重) */
+/** 主区域里打开的一个标签(普通文件或 diff) */
 export interface OpenFileMeta {
   workspaceId: string
-  /** 绝对路径,同时作为标签 id */
+  /** 标签 id;普通文件 = 绝对路径,diff = `diff:<repo>/<relPath>`(天然去重) */
   path: string
   /** 展示用文件名 */
   name: string
+  /** 标签类型;缺省为普通文件 */
+  kind?: 'file' | 'diff'
+  /** diff 专用:仓库名 */
+  repo?: string
+  /** diff 专用:相对仓库根的路径 */
+  relPath?: string
 }
 
 function wtPath(ws: Workspace, repo: string): string {
@@ -78,10 +84,14 @@ interface StoreState {
   setActiveTerminal: (wsId: string, id: string) => void
   /** 打开(或激活已打开的)文件标签 */
   openFile: (wsId: string, path: string, name: string) => void
+  /** 打开(或激活已打开的)某改动文件的 diff 标签 */
+  openDiff: (wsId: string, repo: string, relPath: string) => void
   /** 激活某个已打开的文件标签 */
   setActiveFile: (wsId: string, path: string) => void
   /** 关闭文件标签 */
   closeFile: (wsId: string, path: string) => void
+  /** 关闭整个文件视图(关闭该工作区所有文件/diff 标签) */
+  closeAllFiles: (wsId: string) => void
   /** 保存文件内容(编辑器) */
   saveFile: (path: string, content: string) => Promise<void>
   /** 重命名一个文件/目录(newName 为新名,不含路径) */
@@ -318,14 +328,38 @@ export const useStore = create<StoreState>((set, get) => ({
       return {
         openFiles: exists
           ? s.openFiles
-          : { ...s.openFiles, [wsId]: [...list, { workspaceId: wsId, path, name }] },
+          : { ...s.openFiles, [wsId]: [...list, { workspaceId: wsId, path, name, kind: 'file' }] },
         activeFile: { ...s.activeFile, [wsId]: path }
+      }
+    })
+  },
+
+  openDiff: (wsId, repo, relPath) => {
+    const id = `diff:${repo}/${relPath}`
+    const name = relPath.split('/').pop() || relPath
+    set((s) => {
+      const list = s.openFiles[wsId] ?? []
+      const exists = list.some((f) => f.path === id)
+      return {
+        openFiles: exists
+          ? s.openFiles
+          : {
+              ...s.openFiles,
+              [wsId]: [...list, { workspaceId: wsId, path: id, name, kind: 'diff', repo, relPath }]
+            },
+        activeFile: { ...s.activeFile, [wsId]: id }
       }
     })
   },
 
   setActiveFile: (wsId, path) =>
     set((s) => ({ activeFile: { ...s.activeFile, [wsId]: path } })),
+
+  closeAllFiles: (wsId) =>
+    set((s) => ({
+      openFiles: { ...s.openFiles, [wsId]: [] },
+      activeFile: { ...s.activeFile, [wsId]: null }
+    })),
 
   closeFile: (wsId, path) =>
     set((s) => {

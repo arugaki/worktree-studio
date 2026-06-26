@@ -20,6 +20,8 @@ const api: WtsApi = {
   statusAll: (workspaceId) => ipcRenderer.invoke(IPC.statusAll, workspaceId),
   status: (workspaceId, repo) =>
     ipcRenderer.invoke(IPC.status, { workspaceId, repo }),
+  getFileDiff: (workspaceId, repo, relPath) =>
+    ipcRenderer.invoke(IPC.getFileDiff, { workspaceId, repo, relPath }),
   pull: (workspaceId, repo) => ipcRenderer.invoke(IPC.pull, { workspaceId, repo }),
   push: (workspaceId, repo) => ipcRenderer.invoke(IPC.push, { workspaceId, repo }),
   pickDirectory: () => ipcRenderer.invoke(IPC.pickDirectory),
