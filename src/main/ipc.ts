@@ -1,6 +1,7 @@
-import { BrowserWindow, dialog, ipcMain } from 'electron'
-import { extname } from 'node:path'
-import { readFileSync } from 'node:fs'
+import { BrowserWindow, clipboard, dialog, ipcMain } from 'electron'
+import { extname, join } from 'node:path'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import {
   IPC,
   type CreatePtyInput,
@@ -9,7 +10,15 @@ import {
 } from '../shared/types'
 import * as wsmgr from './workspace'
 import * as git from './git'
-import { listDir, readFileContent } from './files'
+import {
+  createDir,
+  createFile,
+  deletePath,
+  listDir,
+  readFileContent,
+  renamePath,
+  writeFileContent
+} from './files'
 import { PtyManager, resolveDefaultShell } from './pty'
 import { listShellProfiles } from './shells'
 import { WatcherManager } from './watcher'
@@ -137,6 +146,35 @@ export function registerIpc(getWindow: () => BrowserWindow | null): IpcServices 
   ipcMain.handle(IPC.readDir, (_e, path: string) => listDir(path))
 
   ipcMain.handle(IPC.readFile, (_e, path: string) => readFileContent(path))
+
+  ipcMain.handle(IPC.writeFile, (_e, args: { path: string; content: string }) =>
+    writeFileContent(args.path, args.content)
+  )
+
+  ipcMain.handle(IPC.renamePath, (_e, args: { oldPath: string; newPath: string }) =>
+    renamePath(args.oldPath, args.newPath)
+  )
+
+  ipcMain.handle(IPC.deletePath, (_e, path: string) => deletePath(path))
+
+  ipcMain.handle(IPC.createFile, (_e, path: string) => createFile(path))
+
+  ipcMain.handle(IPC.createDir, (_e, path: string) => createDir(path))
+
+  // 剪贴板里若有图片,存成临时 PNG 并返回路径(供 Claude Code / Codex 读取);否则返回 null
+  ipcMain.handle(IPC.pasteClipboardImage, (): string | null => {
+    try {
+      const img = clipboard.readImage()
+      if (img.isEmpty()) return null
+      const dir = join(tmpdir(), 'worktree-studio-paste')
+      mkdirSync(dir, { recursive: true })
+      const file = join(dir, `clip-${Date.now()}.png`)
+      writeFileSync(file, img.toPNG())
+      return file
+    } catch {
+      return null
+    }
+  })
 
   ipcMain.handle(IPC.defaultShell, () => resolveDefaultShell())
 

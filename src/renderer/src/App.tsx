@@ -28,13 +28,14 @@ export function App(): JSX.Element {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
-  // 全局快捷键:Ctrl+T 新建终端,Ctrl+W 关闭当前终端。
-  // 用捕获阶段抢在 xterm 之前处理,并阻止默认行为(否则 Ctrl+W 会关掉整个窗口)。
+  // 全局快捷键(对齐 Windows Terminal):Ctrl+Shift+T 新建终端,Ctrl+Shift+W 关闭当前终端。
+  // 刻意用 Ctrl+Shift+* 而非 Ctrl+T / Ctrl+W —— 后者是 PowerShell/PSReadLine(转置字符、
+  // 向后删词)以及 Claude Code 需要的按键,绝不能被我们在捕获阶段截走。
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (!(e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey)) return
+      if (!(e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey)) return
       // 在我们的输入框(如重命名)里打字时不拦截
-      if (e.target instanceof HTMLInputElement) return
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       const st = useStore.getState()
       const wsId = st.activeId
       if (!wsId) return
@@ -45,14 +46,8 @@ export function App(): JSX.Element {
       } else if (e.code === 'KeyW') {
         e.preventDefault()
         e.stopPropagation()
-        // 正在看文件就关文件标签,否则关当前终端
-        const fid = st.activeFile[wsId]
-        if (fid) {
-          st.closeFile(wsId, fid)
-        } else {
-          const tid = st.activeTerminal[wsId]
-          if (tid) st.closeTerminal(wsId, tid)
-        }
+        const tid = st.activeTerminal[wsId]
+        if (tid) st.closeTerminal(wsId, tid)
       }
     }
     window.addEventListener('keydown', onKey, true)

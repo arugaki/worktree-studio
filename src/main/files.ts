@@ -1,4 +1,12 @@
-import { readdir, readFile as fsReadFile, stat } from 'node:fs/promises'
+import {
+  mkdir,
+  readdir,
+  readFile as fsReadFile,
+  rename,
+  rm,
+  stat,
+  writeFile as fsWriteFile
+} from 'node:fs/promises'
 import { join } from 'node:path'
 import type { FileEntry, FileReadResult } from '../shared/types'
 
@@ -42,4 +50,29 @@ export async function readFileContent(path: string): Promise<FileReadResult> {
     }
   }
   return { path, content: buf.toString('utf8'), size: st.size, binary: false, tooLarge: false }
+}
+
+/** 写入文件内容(覆盖),用于编辑器保存 */
+export async function writeFileContent(path: string, content: string): Promise<void> {
+  await fsWriteFile(path, content, 'utf8')
+}
+
+/** 重命名 / 移动一个文件或目录 */
+export async function renamePath(oldPath: string, newPath: string): Promise<void> {
+  await rename(oldPath, newPath)
+}
+
+/** 删除文件或目录(目录递归删除) */
+export async function deletePath(path: string): Promise<void> {
+  await rm(path, { recursive: true, force: true })
+}
+
+/** 新建空文件(已存在则报错,避免覆盖) */
+export async function createFile(path: string): Promise<void> {
+  await fsWriteFile(path, '', { flag: 'wx' })
+}
+
+/** 新建目录(已存在则报错) */
+export async function createDir(path: string): Promise<void> {
+  await mkdir(path, { recursive: false })
 }

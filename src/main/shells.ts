@@ -1,8 +1,47 @@
-import { spawnSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { TerminalProfile } from '../shared/types'
 import { resolveDefaultShell } from './pty'
+
+/**
+ * 异步执行一个命令并收集 stdout(带超时)。用 spawn 而非 spawnSync,避免阻塞主进程的
+ * 消息泵导致窗口「未响应」(wsl --list 首次调用尤其慢)。失败/超时一律返回空结果。
+ */
+function runAsync(
+  cmd: string,
+  args: string[],
+  timeoutMs: number
+): Promise<{ status: number; stdout: Buffer }> {
+  return new Promise((resolve) => {
+    let settled = false
+    const done = (status: number, stdout: Buffer): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve({ status, stdout })
+    }
+    let child: ReturnType<typeof spawn>
+    try {
+      child = spawn(cmd, args, { windowsHide: true })
+    } catch {
+      done(-1, Buffer.alloc(0))
+      return
+    }
+    const chunks: Buffer[] = []
+    const timer = setTimeout(() => {
+      try {
+        child.kill()
+      } catch {
+        /* ignore */
+      }
+      done(-1, Buffer.concat(chunks))
+    }, timeoutMs)
+    child.stdout?.on('data', (d: Buffer) => chunks.push(d))
+    child.on('error', () => done(-1, Buffer.concat(chunks)))
+    child.on('close', (code) => done(code ?? -1, Buffer.concat(chunks)))
+  })
+}
 
 /**
  * 枚举本机可用的终端配置,模仿 Windows Terminal 下拉:
@@ -12,7 +51,7 @@ import { resolveDefaultShell } from './pty'
  *  4) 内置 pwsh / Windows PowerShell / CMD 兜底,保证列表永不为空
  * 每个来源独立 try/catch,任一失败不影响其余;最终按"可执行+参数"去重。
  */
-export function listShellProfiles(): TerminalProfile[] {
+export async function listShellProfiles(): Promise<TerminalProfile[]> {
   const out: TerminalProfile[] = []
   const seen = new Set<string>()
   const seenLabels = new Set<string>()
@@ -33,16 +72,16 @@ export function listShellProfiles(): TerminalProfile[] {
     /* ignore */
   }
 
-  // 2) WSL 发行版(WT 存根常缺 commandline,这里直接问 wsl 才完整)
+  // 2) WSL 发行版(WT 存根常缺 commandline,这里直接问 wsl 才完整)— 异步,不阻塞主进程
   try {
-    for (const p of enumWslDistros()) add(p)
+    for (const p of await enumWslDistros()) add(p)
   } catch {
     /* ignore */
   }
 
   // 3) Git Bash
   try {
-    const gb = findGitBash()
+    const gb = await findGitBash()
     if (gb) add({ id: 'git-bash', label: 'Git Bash', shellPath: gb, args: ['-i', '-l'], source: 'git' })
   } catch {
     /* ignore */
@@ -203,11 +242,11 @@ function splitCommandLine(cmd: string): string[] {
 
 // ---- WSL ----
 
-function enumWslDistros(): TerminalProfile[] {
-  const r = spawnSync('wsl.exe', ['--list', '--quiet'], { windowsHide: true })
-  if (r.status !== 0 || !r.stdout) return []
+async function enumWslDistros(): Promise<TerminalProfile[]> {
+  const r = await runAsync('wsl.exe', ['--list', '--quiet'], 2500)
+  if (r.status !== 0 || r.stdout.length === 0) return []
   // 输出是 UTF-16LE,逐行一个发行版名
-  const text = Buffer.from(r.stdout).toString('utf16le')
+  const text = r.stdout.toString('utf16le')
   const distros = text
     .split(/\r?\n/)
     .map((l) => l.replace(/\0/g, '').trim())
@@ -225,7 +264,7 @@ function enumWslDistros(): TerminalProfile[] {
 
 // ---- Git Bash ----
 
-function findGitBash(): string | null {
+async function findGitBash(): Promise<string | null> {
   const candidates = [
     join(process.env.ProgramFiles ?? 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
     join(process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)', 'Git', 'bin', 'bash.exe'),
@@ -234,11 +273,15 @@ function findGitBash(): string | null {
   for (const c of candidates) {
     if (c && existsSync(c)) return c
   }
-  // PATH 里找 git,再推导出 bash
+  // PATH 里找 git,再推导出 bash(异步 where.exe,带超时)
   try {
-    const r = spawnSync('where.exe', ['git.exe'], { encoding: 'utf8', windowsHide: true })
+    const r = await runAsync('where.exe', ['git.exe'], 1500)
     if (r.status === 0) {
-      const gitExe = r.stdout.split(/\r?\n/).find((l) => l.trim())?.trim()
+      const gitExe = r.stdout
+        .toString('utf8')
+        .split(/\r?\n/)
+        .find((l) => l.trim())
+        ?.trim()
       if (gitExe) {
         // ...\Git\cmd\git.exe → ...\Git\bin\bash.exe
         const bash = join(gitExe, '..', '..', 'bin', 'bash.exe')

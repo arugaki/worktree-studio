@@ -42,8 +42,10 @@ interface StoreState {
   activeTerminal: Record<string, string | null>
   /** 每个工作区打开的文件标签 */
   openFiles: Record<string, OpenFileMeta[]>
-  /** 当前在主区域展示的文件路径;null = 展示终端 */
+  /** 当前在文件面板展示的文件路径;null = 没有选中文件 */
   activeFile: Record<string, string | null>
+  /** 文件系统改动计数:每次增删改后自增,文件树据此重新加载 */
+  fsNonce: number
   showCreate: boolean
   sidebarCollapsed: boolean
   busy: boolean
@@ -74,6 +76,14 @@ interface StoreState {
   setActiveFile: (wsId: string, path: string) => void
   /** 关闭文件标签 */
   closeFile: (wsId: string, path: string) => void
+  /** 保存文件内容(编辑器) */
+  saveFile: (path: string, content: string) => Promise<void>
+  /** 重命名一个文件/目录(newName 为新名,不含路径) */
+  renameEntry: (wsId: string, oldPath: string, newName: string) => Promise<void>
+  /** 删除一个文件/目录 */
+  deleteEntry: (wsId: string, path: string) => Promise<void>
+  /** 在某目录下新建文件或目录 */
+  createEntry: (parentDir: string, name: string, isDir: boolean) => Promise<void>
   closeTerminal: (wsId: string, id: string) => void
   closeOtherTerminals: (wsId: string, id: string) => void
   closeTerminalsToRight: (wsId: string, id: string) => void
@@ -95,18 +105,27 @@ export const useStore = create<StoreState>((set, get) => ({
   activeTerminal: {},
   openFiles: {},
   activeFile: {},
+  fsNonce: 0,
   showCreate: false,
   sidebarCollapsed: false,
   busy: false,
   error: null,
 
   init: async () => {
-    const [shell, profiles, workspaces] = await Promise.all([
+    // 只等「快」的两项,首屏立即可用;终端 profile 枚举要探测 WSL/Git,较慢,放后台加载,
+    // 避免首次打开时主进程被同步探测拖住、窗口「未响应」。
+    const [shell, workspaces] = await Promise.all([
       window.api.defaultShell(),
-      window.api.listShellProfiles().catch(() => [] as TerminalProfile[]),
       window.api.listWorkspaces()
     ])
-    set({ defaultShell: shell, profiles, workspaces, ready: true })
+    set({ defaultShell: shell, workspaces, ready: true })
+
+    window.api
+      .listShellProfiles()
+      .then((profiles) => set({ profiles }))
+      .catch(() => {
+        /* 保持空列表,新建终端时回退到默认 shell */
+      })
 
     window.api.onGitChanged(({ workspaceId, repo }) => {
       // 只刷新发生变化的那个仓库,而不是整个工作区的全部仓库
@@ -247,9 +266,8 @@ export const useStore = create<StoreState>((set, get) => ({
     }
     set((s) => ({
       terminals: { ...s.terminals, [wsId]: [...(s.terminals[wsId] ?? []), meta] },
-      activeTerminal: { ...s.activeTerminal, [wsId]: id },
-      // 新建终端时切回终端视图
-      activeFile: { ...s.activeFile, [wsId]: null }
+      activeTerminal: { ...s.activeTerminal, [wsId]: id }
+      // 文件面板与终端并排显示,新建终端不再关闭文件面板
     }))
   },
 
@@ -264,9 +282,8 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setActiveTerminal: (wsId, id) =>
     set((s) => ({
-      activeTerminal: { ...s.activeTerminal, [wsId]: id },
-      // 点终端标签时退出文件视图
-      activeFile: { ...s.activeFile, [wsId]: null }
+      activeTerminal: { ...s.activeTerminal, [wsId]: id }
+      // 终端与文件面板并排,切换终端不影响文件面板
     })),
 
   openFile: (wsId, path, name) => {
@@ -298,6 +315,66 @@ export const useStore = create<StoreState>((set, get) => ({
         activeFile: { ...s.activeFile, [wsId]: active }
       }
     }),
+
+  saveFile: async (path, content) => {
+    await window.api.writeFile(path, content)
+  },
+
+  renameEntry: async (wsId, oldPath, newName) => {
+    const name = newName.trim()
+    if (!name) return
+    const sep = oldPath.includes('\\') ? '\\' : '/'
+    const parent = oldPath.slice(0, oldPath.lastIndexOf(sep))
+    const newPath = parent + sep + name
+    if (newPath === oldPath) return
+    await window.api.renamePath(oldPath, newPath)
+    set((s) => {
+      // 同步更新受影响的已打开文件标签(自身或其子文件)
+      const files = (s.openFiles[wsId] ?? []).map((f) => {
+        if (f.path === oldPath) return { ...f, path: newPath, name }
+        if (f.path.startsWith(oldPath + sep))
+          return { ...f, path: newPath + f.path.slice(oldPath.length) }
+        return f
+      })
+      let active = s.activeFile[wsId] ?? null
+      if (active === oldPath) active = newPath
+      else if (active && active.startsWith(oldPath + sep))
+        active = newPath + active.slice(oldPath.length)
+      return {
+        openFiles: { ...s.openFiles, [wsId]: files },
+        activeFile: { ...s.activeFile, [wsId]: active },
+        fsNonce: s.fsNonce + 1
+      }
+    })
+  },
+
+  deleteEntry: async (wsId, path) => {
+    await window.api.deletePath(path)
+    const sep = path.includes('\\') ? '\\' : '/'
+    set((s) => {
+      const files = (s.openFiles[wsId] ?? []).filter(
+        (f) => f.path !== path && !f.path.startsWith(path + sep)
+      )
+      let active = s.activeFile[wsId] ?? null
+      if (active === path || (active && active.startsWith(path + sep)))
+        active = files.length > 0 ? files[files.length - 1].path : null
+      return {
+        openFiles: { ...s.openFiles, [wsId]: files },
+        activeFile: { ...s.activeFile, [wsId]: active },
+        fsNonce: s.fsNonce + 1
+      }
+    })
+  },
+
+  createEntry: async (parentDir, name, isDir) => {
+    const n = name.trim()
+    if (!n) return
+    const sep = parentDir.includes('\\') ? '\\' : '/'
+    const path = parentDir.replace(/[\\/]+$/, '') + sep + n
+    if (isDir) await window.api.createDir(path)
+    else await window.api.createFile(path)
+    set((s) => ({ fsNonce: s.fsNonce + 1 }))
+  },
 
   closeTerminal: (wsId, id) => {
     disposeTerminal(id)

@@ -335,8 +335,27 @@ export function ensureTerminal(meta: CreatePtyInput): TerminalEntry {
     const text = window.api.clipboardRead()
     if (text) term.paste(text)
   }
+  // 智能粘贴:剪贴板里若是图片,存成临时文件后把路径交给 TUI(Claude Code / Codex 能读图片
+  // 文件路径);否则按文本粘贴。Claude/Codex 在 Windows 下无法直接读系统剪贴板里的图片,
+  // 用「写临时文件 + 粘贴路径」来桥接。
+  const pasteSmart = (): void => {
+    void window.api
+      .pasteClipboardImage()
+      .then((file) => {
+        if (file) term.paste(file)
+        else pasteClipboard()
+      })
+      .catch(() => pasteClipboard())
+  }
   term.attachCustomKeyEventHandler((e) => {
     if (e.type !== 'keydown') return true
+    // Ctrl+Enter / Shift+Enter:发送换行 LF(等价于 Ctrl+J)。Claude Code 与 Codex 都把 LF
+    // 当作「插入换行」、把回车 CR 当作「提交」。Claude 习惯用 Ctrl+Enter、Codex 习惯用
+    // Shift+Enter,这里两者都映射到 LF,于是两个 TUI 的换行快捷键都能正常工作。
+    if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey) && !e.altKey && !e.metaKey) {
+      window.api.ptyInput(meta.id, '\n')
+      return false
+    }
     const ctrl = e.ctrlKey && !e.altKey && !e.metaKey
     if (!ctrl) return true
     if (e.code === 'KeyC') {
@@ -348,7 +367,9 @@ export function ensureTerminal(meta: CreatePtyInput): TerminalEntry {
       return !copySelection()
     }
     if (e.code === 'KeyV') {
-      pasteClipboard()
+      // Ctrl+Shift+V 强制按文本粘贴;Ctrl+V 优先粘贴图片
+      if (e.shiftKey) pasteClipboard()
+      else pasteSmart()
       return false
     }
     return true
@@ -357,7 +378,7 @@ export function ensureTerminal(meta: CreatePtyInput): TerminalEntry {
   // Windows 右键:有选区则复制,否则粘贴(类似 conhost 快速编辑)
   wrapper.addEventListener('contextmenu', (e) => {
     e.preventDefault()
-    if (!copySelection()) pasteClipboard()
+    if (!copySelection()) pasteSmart()
   })
 
   // 用户输入 → 写入 pty

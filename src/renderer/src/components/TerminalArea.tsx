@@ -46,7 +46,10 @@ export function TerminalArea({ ws }: { ws: Workspace }): JSX.Element {
   const [ctx, setCtx] = useState<CtxMenu | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
+  // 文件面板占整体宽度的比例(右侧),默认一半
+  const [fileRatio, setFileRatio] = useState(0.5)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const splitRef = useRef<HTMLDivElement>(null)
 
   // 点击外部 / Esc 关闭新建下拉与右键菜单
   useEffect(() => {
@@ -76,270 +79,295 @@ export function TerminalArea({ ws }: { ws: Workspace }): JSX.Element {
 
   const ctxTerm = ctx ? terminals.find((t) => t.id === ctx.id) : null
 
+  const hasFiles = openFiles.length > 0
+  const shownFile = openFiles.find((f) => f.path === activeFile) ?? openFiles[openFiles.length - 1]
+
+  // 拖拽分隔条:实时调整文件面板宽度比例
+  const startFileResize = (e: React.MouseEvent): void => {
+    e.preventDefault()
+    const rect = splitRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const onMove = (ev: MouseEvent): void => {
+      const r = (rect.right - ev.clientX) / rect.width
+      setFileRatio(Math.min(0.8, Math.max(0.2, r)))
+    }
+    const onUp = (): void => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
   return (
-    <div className="term-area">
-      <div className="term-tabs">
-        <div className="term-tabs-scroll">
-          {terminals.map((t) => {
-            const colored = t.color
-            return (
-              <div
-                key={t.id}
-                className={
-                  'term-tab' +
-                  (activeFile === null && t.id === activeTerm ? ' active' : '') +
-                  (dragId === t.id ? ' dragging' : '')
-                }
-                style={
-                  colored
-                    ? { borderColor: t.color, background: t.color + '22' }
-                    : undefined
-                }
-                onClick={() => setActiveTerminal(ws.id, t.id)}
-                title={(t.profileLabel ? t.profileLabel + ' · ' : '') + t.cwd}
-                draggable={editingId !== t.id}
-                onDragStart={(e) => {
-                  setDragId(t.id)
-                  e.dataTransfer.effectAllowed = 'move'
-                }}
-                onDragEnd={() => setDragId(null)}
-                onDragOver={(e) => {
-                  if (dragId && dragId !== t.id) e.preventDefault()
-                }}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  if (dragId) moveTerminal(ws.id, dragId, t.id)
-                  setDragId(null)
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault()
-                  setMenuOpen(false)
-                  setCtx({ id: t.id, x: e.clientX, y: e.clientY })
-                }}
-                onDoubleClick={() => setEditingId(t.id)}
-                onMouseDown={(e) => {
-                  // 中键关闭
-                  if (e.button === 1) {
-                    e.preventDefault()
-                    closeTerminal(ws.id, t.id)
+    <div className="work-split" ref={splitRef}>
+      <div className="term-area">
+        <div className="term-tabs">
+          <div className="term-tabs-scroll">
+            {terminals.map((t) => {
+              const colored = t.color
+              return (
+                <div
+                  key={t.id}
+                  className={
+                    'term-tab' +
+                    (t.id === activeTerm ? ' active' : '') +
+                    (dragId === t.id ? ' dragging' : '')
                   }
-                }}
-              >
-                <TermIcon meta={t} />
-                {editingId === t.id ? (
-                  <input
-                    className="term-tab-edit"
-                    autoFocus
-                    defaultValue={displayTitle(t)}
-                    onClick={(e) => e.stopPropagation()}
-                    onBlur={(e) => {
-                      renameTerminal(ws.id, t.id, e.target.value)
-                      setEditingId(null)
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        renameTerminal(ws.id, t.id, (e.target as HTMLInputElement).value)
-                        setEditingId(null)
-                      } else if (e.key === 'Escape') {
-                        setEditingId(null)
-                      }
-                    }}
-                  />
-                ) : (
-                  <span className="term-tab-title">{displayTitle(t)}</span>
-                )}
-                <button
-                  className="term-tab-close"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    closeTerminal(ws.id, t.id)
+                  style={
+                    colored ? { borderColor: t.color, background: t.color + '22' } : undefined
+                  }
+                  onClick={() => setActiveTerminal(ws.id, t.id)}
+                  title={(t.profileLabel ? t.profileLabel + ' · ' : '') + t.cwd}
+                  draggable={editingId !== t.id}
+                  onDragStart={(e) => {
+                    setDragId(t.id)
+                    e.dataTransfer.effectAllowed = 'move'
+                  }}
+                  onDragEnd={() => setDragId(null)}
+                  onDragOver={(e) => {
+                    if (dragId && dragId !== t.id) e.preventDefault()
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    if (dragId) moveTerminal(ws.id, dragId, t.id)
+                    setDragId(null)
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    setMenuOpen(false)
+                    setCtx({ id: t.id, x: e.clientX, y: e.clientY })
+                  }}
+                  onDoubleClick={() => setEditingId(t.id)}
+                  onMouseDown={(e) => {
+                    // 中键关闭
+                    if (e.button === 1) {
+                      e.preventDefault()
+                      closeTerminal(ws.id, t.id)
+                    }
                   }}
                 >
-                  ×
-                </button>
-              </div>
-            )
-          })}
+                  <TermIcon meta={t} />
+                  {editingId === t.id ? (
+                    <input
+                      className="term-tab-edit"
+                      autoFocus
+                      defaultValue={displayTitle(t)}
+                      onClick={(e) => e.stopPropagation()}
+                      onBlur={(e) => {
+                        renameTerminal(ws.id, t.id, e.target.value)
+                        setEditingId(null)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          renameTerminal(ws.id, t.id, (e.target as HTMLInputElement).value)
+                          setEditingId(null)
+                        } else if (e.key === 'Escape') {
+                          setEditingId(null)
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span className="term-tab-title">{displayTitle(t)}</span>
+                  )}
+                  <button
+                    className="term-tab-close"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      closeTerminal(ws.id, t.id)
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              )
+            })}
+          </div>
 
-          {openFiles.map((f) => (
-            <div
-              key={f.path}
-              className={'term-tab file-tab' + (activeFile === f.path ? ' active' : '')}
-              onClick={() => setActiveFile(ws.id, f.path)}
-              title={f.path}
-              onMouseDown={(e) => {
-                if (e.button === 1) {
-                  e.preventDefault()
-                  closeFile(ws.id, f.path)
-                }
+          <div className="term-add-wrap" ref={wrapRef}>
+            <div className="term-add-split">
+              <button
+                className="term-add"
+                onClick={() => addRootTerminal(ws.id)}
+                title="新建终端(默认)"
+              >
+                ＋
+              </button>
+              <button
+                className="term-add term-add-caret"
+                onClick={() => setMenuOpen((v) => !v)}
+                title="选择终端类型"
+              >
+                ▾
+              </button>
+            </div>
+            {menuOpen && (
+              <div className="term-profile-menu">
+                {profiles.length === 0 && (
+                  <div className="term-profile-empty">未发现可用终端</div>
+                )}
+                {profiles.map((p) => (
+                  <button
+                    key={p.id}
+                    className={'term-profile-item' + (p.id === defaultId ? ' active' : '')}
+                    onClick={() => {
+                      addRootTerminal(ws.id, p)
+                      setMenuOpen(false)
+                    }}
+                    title={[p.shellPath, ...(p.args ?? [])].join(' ')}
+                  >
+                    <span className="term-profile-name">{p.label}</span>
+                    {p.id === defaultId && <span className="term-profile-tag">默认</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {ctx && ctxTerm && (
+          <div
+            className="term-ctx-menu"
+            style={{ left: ctx.x, top: ctx.y }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              className="term-ctx-item"
+              onClick={() => {
+                setEditingId(ctx.id)
+                setCtx(null)
               }}
             >
-              <span className="term-tab-fileicon">📄</span>
-              <span className="term-tab-title">{f.name}</span>
+              重命名
+            </button>
+            <button
+              className="term-ctx-item"
+              onClick={() => {
+                duplicateTerminal(ws.id, ctx.id)
+                setCtx(null)
+              }}
+            >
+              复制
+            </button>
+            <div className="term-ctx-sep" />
+            <div className="term-ctx-colors">
+              {TAB_COLORS.map((c) => (
+                <button
+                  key={c}
+                  className={'term-ctx-swatch' + (ctxTerm.color === c ? ' active' : '')}
+                  style={{ background: c }}
+                  title="设置标签颜色"
+                  onClick={() => {
+                    setTerminalColor(ws.id, ctx.id, c)
+                    setCtx(null)
+                  }}
+                />
+              ))}
               <button
-                className="term-tab-close"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  closeFile(ws.id, f.path)
+                className="term-ctx-swatch term-ctx-swatch-none"
+                title="清除颜色"
+                onClick={() => {
+                  setTerminalColor(ws.id, ctx.id, null)
+                  setCtx(null)
                 }}
               >
                 ×
               </button>
             </div>
-          ))}
-        </div>
-
-        <div className="term-add-wrap" ref={wrapRef}>
-          <div className="term-add-split">
+            <div className="term-ctx-sep" />
             <button
-              className="term-add"
-              onClick={() => addRootTerminal(ws.id)}
-              title="新建终端(默认)"
-            >
-              ＋
-            </button>
-            <button
-              className="term-add term-add-caret"
-              onClick={() => setMenuOpen((v) => !v)}
-              title="选择终端类型"
-            >
-              ▾
-            </button>
-          </div>
-          {menuOpen && (
-            <div className="term-profile-menu">
-              {profiles.length === 0 && (
-                <div className="term-profile-empty">未发现可用终端</div>
-              )}
-              {profiles.map((p) => (
-                <button
-                  key={p.id}
-                  className={'term-profile-item' + (p.id === defaultId ? ' active' : '')}
-                  onClick={() => {
-                    addRootTerminal(ws.id, p)
-                    setMenuOpen(false)
-                  }}
-                  title={[p.shellPath, ...(p.args ?? [])].join(' ')}
-                >
-                  <span className="term-profile-name">{p.label}</span>
-                  {p.id === defaultId && <span className="term-profile-tag">默认</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {ctx && ctxTerm && (
-        <div
-          className="term-ctx-menu"
-          style={{ left: ctx.x, top: ctx.y }}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <button
-            className="term-ctx-item"
-            onClick={() => {
-              setEditingId(ctx.id)
-              setCtx(null)
-            }}
-          >
-            重命名
-          </button>
-          <button
-            className="term-ctx-item"
-            onClick={() => {
-              duplicateTerminal(ws.id, ctx.id)
-              setCtx(null)
-            }}
-          >
-            复制
-          </button>
-          <div className="term-ctx-sep" />
-          <div className="term-ctx-colors">
-            {TAB_COLORS.map((c) => (
-              <button
-                key={c}
-                className={'term-ctx-swatch' + (ctxTerm.color === c ? ' active' : '')}
-                style={{ background: c }}
-                title="设置标签颜色"
-                onClick={() => {
-                  setTerminalColor(ws.id, ctx.id, c)
-                  setCtx(null)
-                }}
-              />
-            ))}
-            <button
-              className="term-ctx-swatch term-ctx-swatch-none"
-              title="清除颜色"
+              className="term-ctx-item"
               onClick={() => {
-                setTerminalColor(ws.id, ctx.id, null)
+                closeTerminal(ws.id, ctx.id)
                 setCtx(null)
               }}
             >
-              ×
+              关闭
+            </button>
+            <button
+              className="term-ctx-item"
+              onClick={() => {
+                closeOtherTerminals(ws.id, ctx.id)
+                setCtx(null)
+              }}
+            >
+              关闭其他
+            </button>
+            <button
+              className="term-ctx-item"
+              onClick={() => {
+                closeTerminalsToRight(ws.id, ctx.id)
+                setCtx(null)
+              }}
+            >
+              关闭右侧
             </button>
           </div>
-          <div className="term-ctx-sep" />
-          <button
-            className="term-ctx-item"
-            onClick={() => {
-              closeTerminal(ws.id, ctx.id)
-              setCtx(null)
-            }}
-          >
-            关闭
-          </button>
-          <button
-            className="term-ctx-item"
-            onClick={() => {
-              closeOtherTerminals(ws.id, ctx.id)
-              setCtx(null)
-            }}
-          >
-            关闭其他
-          </button>
-          <button
-            className="term-ctx-item"
-            onClick={() => {
-              closeTerminalsToRight(ws.id, ctx.id)
-              setCtx(null)
-            }}
-          >
-            关闭右侧
-          </button>
-        </div>
-      )}
+        )}
 
-      <div className="term-body">
-        {bgImage && (
-          <>
-            <div
-              className="term-bg-image"
-              style={{ backgroundImage: `url("${bgImage}")` }}
-            />
-            <div
-              className="term-bg-scrim"
-              style={{ background: `rgba(8,9,13,${bgDim})` }}
-            />
-          </>
-        )}
-        {terminals.length === 0 && !activeFile && (
-          <div className="term-empty">没有终端,点击右上角 ＋ 新建一个</div>
-        )}
-        {/* 终端常驻挂载(保活 pty),仅当未查看文件且为当前标签时可见 */}
-        {terminals.map((t) => (
-          <TerminalPane
-            key={t.id}
-            meta={t}
-            active={activeFile === null && t.id === activeTerm}
-          />
-        ))}
-        {activeFile &&
-          (() => {
-            const f = openFiles.find((x) => x.path === activeFile)
-            return f ? <FileViewer key={f.path} path={f.path} name={f.name} /> : null
-          })()}
+        <div className="term-body">
+          {bgImage && (
+            <>
+              <div
+                className="term-bg-image"
+                style={{ backgroundImage: `url("${bgImage}")` }}
+              />
+              <div
+                className="term-bg-scrim"
+                style={{ background: `rgba(8,9,13,${bgDim})` }}
+              />
+            </>
+          )}
+          {terminals.length === 0 && (
+            <div className="term-empty">没有终端,点击右上角 ＋ 新建一个</div>
+          )}
+          {/* 终端常驻挂载(保活 pty),仅当前标签可见 */}
+          {terminals.map((t) => (
+            <TerminalPane key={t.id} meta={t} active={t.id === activeTerm} />
+          ))}
+        </div>
       </div>
+
+      {hasFiles && (
+        <>
+          <div className="file-resizer" onMouseDown={startFileResize} title="拖拽调整宽度" />
+          <div className="file-panel" style={{ flexBasis: `${fileRatio * 100}%` }}>
+            <div className="file-panel-tabs">
+              {openFiles.map((f) => (
+                <div
+                  key={f.path}
+                  className={'term-tab file-tab' + (shownFile?.path === f.path ? ' active' : '')}
+                  onClick={() => setActiveFile(ws.id, f.path)}
+                  title={f.path}
+                  onMouseDown={(e) => {
+                    if (e.button === 1) {
+                      e.preventDefault()
+                      closeFile(ws.id, f.path)
+                    }
+                  }}
+                >
+                  <span className="term-tab-fileicon">📄</span>
+                  <span className="term-tab-title">{f.name}</span>
+                  <button
+                    className="term-tab-close"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      closeFile(ws.id, f.path)
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+            {shownFile && (
+              <FileViewer key={shownFile.path} path={shownFile.path} name={shownFile.name} />
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }

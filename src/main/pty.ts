@@ -8,11 +8,23 @@ let cachedShell: string | null = null
 /** 解析 PowerShell 7(pwsh)的可执行路径,回退到 Windows 自带 powershell */
 export function resolveDefaultShell(): string {
   if (cachedShell) return cachedShell
-  // 1) PATH 中的 pwsh(Store 应用别名也在此)
+  // 1) 标准安装位置(纯 existsSync,最快,绝大多数机器命中,避免 spawnSync 冻结主进程)
+  const candidates = [
+    'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+    'C:\\Program Files\\PowerShell\\7-preview\\pwsh.exe'
+  ]
+  for (const c of candidates) {
+    if (existsSync(c)) {
+      cachedShell = c
+      return cachedShell
+    }
+  }
+  // 2) PATH 中的 pwsh(Store 应用别名也在此);带超时,避免 where.exe 卡住主进程
   try {
     const r = spawnSync('where.exe', ['pwsh.exe'], {
       encoding: 'utf8',
-      windowsHide: true
+      windowsHide: true,
+      timeout: 1500
     })
     if (r.status === 0) {
       const first = r.stdout.split(/\r?\n/).find((l) => l.trim())
@@ -23,17 +35,6 @@ export function resolveDefaultShell(): string {
     }
   } catch {
     /* ignore */
-  }
-  // 2) 标准安装位置
-  const candidates = [
-    'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
-    'C:\\Program Files\\PowerShell\\7-preview\\pwsh.exe'
-  ]
-  for (const c of candidates) {
-    if (existsSync(c)) {
-      cachedShell = c
-      return cachedShell
-    }
   }
   // 3) 别名 / 系统 powershell 兜底
   cachedShell = process.env.SHELL || 'powershell.exe'

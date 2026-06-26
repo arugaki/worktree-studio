@@ -171,12 +171,24 @@ export interface WtsApi {
   pickImage(): Promise<string | null>
   /** 列出某目录下的条目(文件树懒加载) */
   readDir(path: string): Promise<FileEntry[]>
-  /** 读取某文件内容(只读查看) */
+  /** 读取某文件内容(查看 / 编辑前) */
   readFile(path: string): Promise<FileReadResult>
+  /** 写入文件内容(编辑器保存) */
+  writeFile(path: string, content: string): Promise<void>
+  /** 重命名 / 移动一个文件或目录 */
+  renamePath(oldPath: string, newPath: string): Promise<void>
+  /** 删除一个文件或目录(目录递归) */
+  deletePath(path: string): Promise<void>
+  /** 在某目录下新建空文件 */
+  createFile(path: string): Promise<void>
+  /** 新建目录 */
+  createDir(path: string): Promise<void>
   defaultShell(): Promise<string>
   listShellProfiles(): Promise<TerminalProfile[]>
   clipboardRead(): string
   clipboardWrite(text: string): void
+  /** 剪贴板里若有图片,存成临时文件并返回其路径;否则返回 null */
+  pasteClipboardImage(): Promise<string | null>
   ptyCreate(input: CreatePtyInput): Promise<{ id: string; shellPath: string }>
   ptyInput(id: string, data: string): void
   ptyResize(id: string, cols: number, rows: number): void
@@ -201,6 +213,12 @@ export const IPC = {
   pickImage: 'dialog:pickImage',
   readDir: 'fs:readDir',
   readFile: 'fs:readFile',
+  writeFile: 'fs:writeFile',
+  renamePath: 'fs:rename',
+  deletePath: 'fs:delete',
+  createFile: 'fs:createFile',
+  createDir: 'fs:createDir',
+  pasteClipboardImage: 'clipboard:image',
   defaultShell: 'shell:default',
   listShellProfiles: 'shell:listProfiles',
   ptyCreate: 'pty:create',

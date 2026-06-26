@@ -26,11 +26,19 @@ const api: WtsApi = {
   pickImage: () => ipcRenderer.invoke(IPC.pickImage),
   readDir: (path: string) => ipcRenderer.invoke(IPC.readDir, path),
   readFile: (path: string) => ipcRenderer.invoke(IPC.readFile, path),
+  writeFile: (path: string, content: string) =>
+    ipcRenderer.invoke(IPC.writeFile, { path, content }),
+  renamePath: (oldPath: string, newPath: string) =>
+    ipcRenderer.invoke(IPC.renamePath, { oldPath, newPath }),
+  deletePath: (path: string) => ipcRenderer.invoke(IPC.deletePath, path),
+  createFile: (path: string) => ipcRenderer.invoke(IPC.createFile, path),
+  createDir: (path: string) => ipcRenderer.invoke(IPC.createDir, path),
   defaultShell: () => ipcRenderer.invoke(IPC.defaultShell),
   listShellProfiles: () => ipcRenderer.invoke(IPC.listShellProfiles),
 
   clipboardRead: () => clipboard.readText(),
   clipboardWrite: (text: string) => clipboard.writeText(text),
+  pasteClipboardImage: () => ipcRenderer.invoke(IPC.pasteClipboardImage),
 
   ptyCreate: (input: CreatePtyInput) => ipcRenderer.invoke(IPC.ptyCreate, input),
   ptyInput: (id, data) => ipcRenderer.send(IPC.ptyInput, { id, data }),
