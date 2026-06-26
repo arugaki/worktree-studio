@@ -18,8 +18,11 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Build installers
-        run: npm run dist
+      - name: Build app
+        run: npm run build
+      - name: Package installers
+        # --publish never:仅打包,不让 electron-builder 自行发布(否则会因缺 GH_TOKEN 失败)
+        run: npx electron-builder --win --publish never
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
