@@ -926,6 +926,17 @@ button.danger:hover:not(:disabled) {
   color: var(--text);
   white-space: pre;
   flex: 1;
+  /* 允许选中复制 */
+  user-select: text;
+}
+.file-view-text code {
+  font: inherit;
+}
+/* 代码预览复用面板背景,不要 highlight.js 主题自带的深色块底/内边距/独立滚动 */
+.file-view-code .hljs {
+  background: transparent;
+  padding: 0;
+  overflow: visible;
 }
 .term-wrapper {
   width: 100%;
@@ -1053,6 +1064,35 @@ button.danger:hover:not(:disabled) {
   tab-size: 2;
 }
 
+/* ---- 文件查看器:底部状态栏(右下角语言选择,类似 VSCode) ---- */
+.file-view-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  flex-shrink: 0;
+}
+.file-view-lang {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.file-view-lang:hover {
+  background: var(--bg-active);
+  color: var(--text);
+}
+.file-view-lang:focus {
+  outline: none;
+  border-color: var(--border);
+}
+
 /* ---- Markdown 预览 ---- */
 .md-body {
   flex: 1;
@@ -1062,6 +1102,8 @@ button.danger:hover:not(:disabled) {
   color: var(--text);
   font-size: 13.5px;
   line-height: 1.7;
+  /* Markdown 预览允许选中复制 */
+  user-select: text;
 }
 .md-body h1,
 .md-body h2,
@@ -1730,13 +1772,13 @@ button.danger:hover:not(:disabled) {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.22);
   border-radius: var(--radius-pill);
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.38);
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-track {

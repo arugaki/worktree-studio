@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FileReadResult } from '@shared/types'
 import { useStore } from '../store'
 import { renderMarkdown } from '../markdown'
+import { LANGUAGES, detectLang, highlightCode } from '../highlight'
+
+// 超过该字节数就不做高亮(只转义),避免大文件卡顿。
+const MAX_HIGHLIGHT = 300_000
 
 function humanSize(n: number): string {
   if (n < 1024) return `${n} B`
@@ -29,8 +33,9 @@ export function FileViewer({ path, name }: { path: string; name: string }): JSX.
   const [res, setRes] = useState<FileReadResult | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  // 默认:普通文件直接可编辑;Markdown 先渲染预览
-  const [mode, setMode] = useState<'view' | 'edit'>(md ? 'view' : 'edit')
+  // 默认进入预览(Markdown 渲染 / 代码高亮),点「编辑」切到源码文本框
+  const [mode, setMode] = useState<'view' | 'edit'>('view')
+  const [lang, setLang] = useState<string>(() => detectLang(name))
   const [draft, setDraft] = useState('')
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -43,7 +48,8 @@ export function FileViewer({ path, name }: { path: string; name: string }): JSX.
     setLoading(true)
     setErr(null)
     setRes(null)
-    setMode(md ? 'view' : 'edit')
+    setMode('view')
+    setLang(detectLang(name))
     setDirty(false)
     setSaveErr(null)
     window.api
@@ -63,12 +69,22 @@ export function FileViewer({ path, name }: { path: string; name: string }): JSX.
     return () => {
       alive = false
     }
-  }, [path, md])
+  }, [path, md, name])
 
   const lineCount = useMemo(() => {
     const c = draft.endsWith('\n') ? draft.slice(0, -1) : draft
     return c.length === 0 ? 1 : c.split('\n').length
   }, [draft])
+
+  // 高亮 HTML 与左侧行号(仅代码预览用);大文件只转义不上色
+  const codeHtml = useMemo(
+    () => highlightCode(draft, draft.length > MAX_HIGHLIGHT ? 'plaintext' : lang),
+    [draft, lang]
+  )
+  const gutter = useMemo(
+    () => Array.from({ length: lineCount }, (_, i) => i + 1).join('\n'),
+    [lineCount]
+  )
 
   const canEdit = !!res && !res.isDir && !res.binary && !res.tooLarge
 
@@ -121,12 +137,23 @@ export function FileViewer({ path, name }: { path: string; name: string }): JSX.
     )
   } else if (res.binary) {
     body = <div className="file-view-msg">二进制文件({humanSize(res.size)}),不支持文本编辑。</div>
-  } else if (md && mode === 'view') {
+  } else if (mode === 'view' && md) {
     body = (
       <div
         className="file-view-md md-body"
         dangerouslySetInnerHTML={{ __html: renderMarkdown(draft) }}
       />
+    )
+  } else if (mode === 'view') {
+    body = (
+      <div className="file-view-code">
+        <pre className="file-view-gutter" aria-hidden="true">
+          {gutter}
+        </pre>
+        <pre className="file-view-text">
+          <code className="hljs" dangerouslySetInnerHTML={{ __html: codeHtml }} />
+        </pre>
+      </div>
     )
   } else {
     body = editor
@@ -157,20 +184,39 @@ export function FileViewer({ path, name }: { path: string; name: string }): JSX.
             >
               {saving ? '保存中…' : '💾 保存'}
             </button>
-            {md &&
-              (mode === 'view' ? (
-                <button className="file-view-btn" onClick={() => setMode('edit')}>
-                  ✏ 编辑
-                </button>
-              ) : (
-                <button className="file-view-btn" onClick={() => setMode('view')}>
-                  预览
-                </button>
-              ))}
+            {mode === 'view' ? (
+              <button className="file-view-btn" onClick={() => setMode('edit')}>
+                ✏ 编辑
+              </button>
+            ) : (
+              <button className="file-view-btn" onClick={() => setMode('view')}>
+                {md ? '预览' : '高亮预览'}
+              </button>
+            )}
           </>
         )}
       </div>
       {body}
+      {canEdit && (
+        <div className="file-view-status">
+          <span className="file-view-spacer" />
+          <select
+            className="file-view-lang"
+            value={lang}
+            onChange={(e) => setLang(e.target.value)}
+            title="选择语言(语法高亮)"
+          >
+            {LANGUAGES.some((l) => l.id === lang) ? null : (
+              <option value={lang}>{lang}</option>
+            )}
+            {LANGUAGES.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
     </div>
   )
 }
