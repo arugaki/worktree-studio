@@ -25,6 +25,8 @@ export interface TerminalEntry {
   suppressing: boolean
   /** 应用(codex)对光标可见性的最终意图 */
   cursorWanted: boolean
+  /** 切走前记录的「距底部行数」,用于切回时恢复滚动位置(默认锚定到底部) */
+  scrollOffsetFromBottom: number
 }
 
 const entries = new Map<string, TerminalEntry>()
@@ -267,7 +269,8 @@ export function ensureTerminal(meta: CreatePtyInput): TerminalEntry {
     exited: false,
     altScreen: false,
     suppressing: false,
-    cursorWanted: true
+    cursorWanted: true,
+    scrollOffsetFromBottom: 0
   }
 
   // 接管 DECSCUSR(CSI Ps SP q):codex 用的 crossterm 会用 `0 q` 重置成「闪烁块」,
@@ -442,6 +445,30 @@ export function attachTerminal(id: string, container: HTMLElement): void {
     }
     e.term.focus()
   })
+}
+
+/**
+ * 切走某终端前记录滚动位置。
+ * 终端用 display:none 隐藏后,浏览器会把可视区(.xterm-viewport)的 scrollTop 清零,
+ * 切回时就会停在顶部而非底部。这里在隐藏前先记下「距底部的行数」,切回后据此恢复。
+ */
+export function saveScroll(id: string): void {
+  const e = entries.get(id)
+  if (!e) return
+  const buf = e.term.buffer.active
+  e.scrollOffsetFromBottom = Math.max(0, buf.baseY - buf.viewportY)
+}
+
+/** 切回并 fit 后恢复滚动位置;原本在底部(偏移 0)则锚定到底部 */
+export function restoreScroll(id: string): void {
+  const e = entries.get(id)
+  if (!e) return
+  if (e.scrollOffsetFromBottom <= 0) {
+    e.term.scrollToBottom()
+  } else {
+    const buf = e.term.buffer.active
+    e.term.scrollToLine(Math.max(0, buf.baseY - e.scrollOffsetFromBottom))
+  }
 }
 
 /** 容器尺寸变化时重新 fit + 通知 pty */
