@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FileEntry, Workspace } from '@shared/types'
 import { useStore } from '../store'
 
@@ -230,6 +230,7 @@ export function FileTree({ ws }: { ws: Workspace }): JSX.Element {
   const [renamingPath, setRenaming] = useState<string | null>(null)
   const [pendingCreate, setPendingCreate] = useState<PendingCreate | null>(null)
   const [menu, setMenu] = useState<Menu | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const deleteEntry = useStore((s) => s.deleteEntry)
   const setError = useStore((s) => s.setError)
 
@@ -243,6 +244,27 @@ export function FileTree({ ws }: { ws: Workspace }): JSX.Element {
     e.stopPropagation()
     setMenu({ entry, x: e.clientX, y: e.clientY })
   }
+
+  // 菜单打开后按视口边界夹取位置:超出底部则向上翻,超出右侧则左移,
+  // 避免靠近屏幕底部/右侧的文件右键时菜单被截断。
+  useLayoutEffect(() => {
+    const el = menuRef.current
+    if (!menu || !el) return
+    const margin = 6
+    const rect = el.getBoundingClientRect()
+    let left = menu.x
+    let top = menu.y
+    if (left + rect.width > window.innerWidth - margin) {
+      left = Math.max(margin, window.innerWidth - rect.width - margin)
+    }
+    if (top + rect.height > window.innerHeight - margin) {
+      // 优先在光标上方展开;若上方也放不下则贴底夹取
+      top = menu.y - rect.height >= margin ? menu.y - rect.height : window.innerHeight - rect.height - margin
+    }
+    if (top < margin) top = margin
+    el.style.left = `${left}px`
+    el.style.top = `${top}px`
+  }, [menu])
 
   useEffect(() => {
     if (!menu) return
@@ -288,6 +310,7 @@ export function FileTree({ ws }: { ws: Workspace }): JSX.Element {
 
       {menu && (
         <div
+          ref={menuRef}
           className="term-ctx-menu"
           style={{ left: menu.x, top: menu.y }}
           onMouseDown={(e) => e.stopPropagation()}

@@ -715,6 +715,9 @@ button.danger:hover:not(:disabled) {
   border: 1px solid var(--border);
   border-radius: var(--radius-md, 8px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  /* 极端情况下(菜单比视口还高)允许内部滚动,避免被截断 */
+  max-height: calc(100vh - 12px);
+  overflow-y: auto;
 }
 .term-ctx-item {
   display: block;
@@ -900,6 +903,7 @@ button.danger:hover:not(:disabled) {
 }
 .file-view-code {
   flex: 1;
+  min-height: 0;
   display: flex;
   overflow: auto;
   font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
