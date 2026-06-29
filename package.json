@@ -7,7 +7,9 @@
   "license": "MIT",
   "scripts": {
     "postinstall": "node scripts/fetch-pty-prebuild.mjs && node scripts/patch-node-pty.mjs",
+    "predev": "node scripts/kill-stale.mjs",
     "dev": "electron-vite dev",
+    "preapp": "node scripts/kill-stale.mjs",
     "app": "node run-app.mjs",
     "build": "electron-vite build",
     "start": "electron-vite preview",
