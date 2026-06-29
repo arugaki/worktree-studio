@@ -1111,7 +1111,7 @@ button.danger:hover:not(:disabled) {
   padding: 0.1em 0.35em;
   border-radius: 4px;
 }
-.md-body pre.md-pre {
+.md-body pre {
   margin: 0.7em 0;
   padding: 12px 14px;
   background: var(--bg-active);
@@ -1119,7 +1119,7 @@ button.danger:hover:not(:disabled) {
   border-radius: var(--radius-sm);
   overflow: auto;
 }
-.md-body pre.md-pre code {
+.md-body pre code {
   background: none;
   padding: 0;
   font-size: 12.5px;
@@ -1135,6 +1135,41 @@ button.danger:hover:not(:disabled) {
   border: none;
   border-top: 1px solid var(--border);
   margin: 1.2em 0;
+}
+.md-body table {
+  border-collapse: collapse;
+  margin: 0.8em 0;
+  font-size: 0.95em;
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow: auto;
+}
+.md-body table th,
+.md-body table td {
+  border: 1px solid var(--border);
+  padding: 6px 13px;
+}
+.md-body table th {
+  font-weight: 650;
+  background: var(--bg-active);
+}
+.md-body table tbody tr:nth-child(2n) {
+  background: color-mix(in srgb, var(--bg-active) 45%, transparent);
+}
+.md-body del {
+  opacity: 0.7;
+}
+.md-body ul.contains-task-list {
+  list-style: none;
+  padding-left: 0.3em;
+}
+.md-body li.task-list-item {
+  margin: 0.2em 0;
+}
+.md-body li.task-list-item input.task-list-item-checkbox {
+  margin-right: 0.5em;
+  vertical-align: middle;
 }
 
 /* ---- 并排 Diff 视图 ---- */
