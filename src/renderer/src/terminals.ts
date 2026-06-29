@@ -353,6 +353,7 @@ export function ensureTerminal(meta: CreatePtyInput): TerminalEntry {
     // 当作「插入换行」、把回车 CR 当作「提交」。Claude 习惯用 Ctrl+Enter、Codex 习惯用
     // Shift+Enter,这里两者都映射到 LF,于是两个 TUI 的换行快捷键都能正常工作。
     if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey) && !e.altKey && !e.metaKey) {
+      e.preventDefault()
       window.api.ptyInput(meta.id, '\n')
       return false
     }
@@ -360,14 +361,21 @@ export function ensureTerminal(meta: CreatePtyInput): TerminalEntry {
     if (!ctrl) return true
     if (e.code === 'KeyC') {
       if (e.shiftKey) {
+        e.preventDefault()
         copySelection()
         return false
       }
-      // 无 shift:有选区才当复制,否则放行让 ^C 中断
-      return !copySelection()
+      // 无 shift:有选区当复制(吃掉默认),否则放行让 ^C 中断
+      if (copySelection()) {
+        e.preventDefault()
+        return false
+      }
+      return true
     }
     if (e.code === 'KeyV') {
-      // Ctrl+Shift+V 强制按文本粘贴;Ctrl+V 优先粘贴图片
+      // 必须 preventDefault:否则浏览器还会对 xterm 的隐藏 textarea 触发一次「原生粘贴」,
+      // 和我们的 term.paste 叠加 → 粘两遍。Ctrl+Shift+V 强制文本;Ctrl+V 优先图片。
+      e.preventDefault()
       if (e.shiftKey) pasteClipboard()
       else pasteSmart()
       return false
@@ -385,7 +393,8 @@ export function ensureTerminal(meta: CreatePtyInput): TerminalEntry {
   wrapper.addEventListener('mousedown', swallowRightButton, true)
   wrapper.addEventListener('mouseup', swallowRightButton, true)
 
-  // Windows 右键:有选区则复制,否则粘贴(类似 conhost 快速编辑)
+  // Windows 右键:有选区则复制,否则粘贴(类似 conhost 快速编辑)。上面已用捕获阶段吞掉右键
+  // 的 mousedown/mouseup,应用收不到右键、不会自己再粘一次,所以这里只粘一次、不会重复。
   wrapper.addEventListener('contextmenu', (e) => {
     e.preventDefault()
     if (!copySelection()) pasteSmart()

@@ -8,6 +8,7 @@
   "scripts": {
     "postinstall": "node scripts/fetch-pty-prebuild.mjs && node scripts/patch-node-pty.mjs",
     "dev": "electron-vite dev",
+    "app": "node run-app.mjs",
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "smoke": "cross-env WTS_SMOKE=1 electron-vite build && cross-env WTS_SMOKE=1 electron .",
